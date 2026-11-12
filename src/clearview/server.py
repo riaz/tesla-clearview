@@ -30,6 +30,7 @@ from pydantic import BaseModel
 from . import auth as authmod
 from . import fog as fogmod
 from . import planner
+from .demo import DemoFleet
 from . import location
 from . import session as sessmod
 from . import weather
@@ -43,6 +44,35 @@ _oauth_nonces: dict[str, float] = {}  # nonce -> expiry
 _last_snapshot: dict | None = None
 
 WEB_DIR = Path(__file__).parent / "web"
+_demo_fleet: DemoFleet | None = None
+
+
+class _RecordingFleet:
+    """Wraps the car client so every reading (dashboard or departure session) updates what
+    the dashboard shows and the car's last known position."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    async def snapshot(self):
+        global _last_snapshot
+        snap = await self._inner.snapshot()
+        location.save_car_location(get_settings(), snap.latitude, snap.longitude)
+        _last_snapshot = {**snap.__dict__, "fetched_at": datetime.now().isoformat(timespec="seconds")}
+        return snap
+
+
+def _fleet():
+    """The car client: the simulated car when CLEARVIEW_DEMO is set, otherwise the Fleet API."""
+    global _demo_fleet
+    s = get_settings()
+    if s.demo:
+        _demo_fleet = _demo_fleet or DemoFleet(s)
+        return _RecordingFleet(_demo_fleet)
+    return _RecordingFleet(FleetClient(s))
 COOKIE = "clearview_session"
 
 
@@ -150,11 +180,22 @@ async def tesla_register() -> dict:
 
 # --- dashboard data ----------------------------------------------------------------
 
+def _locations(s: Settings) -> dict:
+    car = location.last_car_location(s)
+    home = (s.home_lat, s.home_lon) if s.home_lat is not None and s.home_lon is not None else None
+    return {
+        "car": {"lat": car.lat, "lon": car.lon, "at": car.at} if car else None,
+        "home": {"lat": home[0], "lon": home[1]} if home else None,
+    }
+
+
 @app.get("/api/overview", dependencies=[Depends(require_token)])
 async def overview() -> dict:
     s = get_settings()
     return {
-        "tesla": authmod.token_info(s),
+        "tesla": {"logged_in": True, "demo": True} if s.demo else authmod.token_info(s),
+        "demo": s.demo,
+        "locations": _locations(s),
         "config": {
             "client_id_set": bool(s.tesla_client_id and s.tesla_client_secret),
             "domain": s.tesla_domain,
@@ -167,6 +208,9 @@ async def overview() -> dict:
             "ntfy_set": bool(s.ntfy_topic),
             "target_temp_c": s.target_temp_c,
             "sentry_on_depart": s.sentry_on_depart,
+            "stop_grace_min": s.stop_grace_min,
+            "default_lead_min": s.default_lead_min,
+            "defrost_lead_min": s.defrost_lead_min,
         },
         "snapshot": _last_snapshot,
         "sessions": [x.to_dict() for x, _ in sorted(_sessions.values(), key=lambda v: v[0].departure, reverse=True)],
@@ -228,7 +272,7 @@ def _fleet_error(e: Exception) -> HTTPException:
 async def vehicles() -> list[dict]:
     """List vehicles and their online/asleep state. Does not wake the car."""
     try:
-        vs = await FleetClient(get_settings()).list_vehicles()
+        vs = await _fleet().list_vehicles()
     except (FleetError, authmod.AuthError) as e:
         raise _fleet_error(e)
     return [{"vin": v.get("vin"), "name": v.get("display_name"), "state": v.get("state")} for v in vs]
@@ -240,16 +284,13 @@ class SnapshotRequest(BaseModel):
 
 @app.post("/api/vehicle/snapshot", dependencies=[Depends(require_token)])
 async def vehicle_snapshot(req: SnapshotRequest) -> dict:
-    global _last_snapshot
-    f = FleetClient(get_settings())
+    f = _fleet()
     try:
         if req.wake:
             await f.wake()
-        snap = await f.snapshot()
+        await f.snapshot()
     except (FleetError, authmod.AuthError) as e:
         raise _fleet_error(e)
-    location.save_car_location(get_settings(), snap.latitude, snap.longitude)
-    _last_snapshot = {**snap.__dict__, "fetched_at": datetime.now().isoformat(timespec="seconds")}
     return _last_snapshot
 
 
@@ -260,7 +301,7 @@ class AlertsRequest(BaseModel):
 @app.post("/api/vehicle/alerts", dependencies=[Depends(require_token)])
 async def vehicle_alerts(req: AlertsRequest) -> list[dict]:
     """The car's recent alerts, newest first. Camera-related ones are flagged."""
-    f = FleetClient(get_settings())
+    f = _fleet()
     try:
         if req.wake:
             await f.wake()
@@ -292,7 +333,10 @@ async def conditions(lat: float | None = None, lon: float | None = None) -> dict
         raise HTTPException(502, f"weather: {e}")
     cabin = _last_snapshot.get("inside_temp") if _last_snapshot else None
     f = fogmod.assess(w, cabin_temp_c=cabin)
+    s = get_settings()
+    lead = planner.lead_minutes(f, w.temp_c, s.default_lead_min, s.defrost_lead_min)
     return {
+        "lead_min": lead,
         "available": True,
         "source": loc.source,
         "source_text": loc.describe(),
@@ -309,21 +353,25 @@ async def conditions(lat: float | None = None, lon: float | None = None) -> dict
 
 
 COMMANDS = {
-    "climate_on": ("climate on", lambda f: f.climate_on()),
-    "climate_off": ("climate off", lambda f: f.climate_off()),
-    "defrost_on": ("max defrost on", lambda f: f.max_defrost(True)),
-    "defrost_off": ("max defrost off", lambda f: f.max_defrost(False)),
-    "seat_heat_high": ("driver seat heat high", lambda f: f.seat_heater(0, 3)),
-    "seat_heat_off": ("driver seat heat off", lambda f: f.seat_heater(0, 0)),
-    "wheel_heat_on": ("steering wheel heat on", lambda f: f.steering_wheel_heater(True)),
-    "wheel_heat_off": ("steering wheel heat off", lambda f: f.steering_wheel_heater(False)),
-    "sentry_on": ("Sentry Mode on", lambda f: f.sentry_mode(True)),
-    "sentry_off": ("Sentry Mode off", lambda f: f.sentry_mode(False)),
+    "climate_on": ("climate on", lambda f, v: f.climate_on()),
+    "climate_off": ("climate off", lambda f, v: f.climate_off()),
+    "defrost_on": ("max defrost on", lambda f, v: f.max_defrost(True)),
+    "defrost_off": ("max defrost off", lambda f, v: f.max_defrost(False)),
+    "seat_heat_high": ("driver seat heat high", lambda f, v: f.seat_heater(0, 3)),
+    "seat_heat_off": ("driver seat heat off", lambda f, v: f.seat_heater(0, 0)),
+    "passenger_seat_heat_high": ("passenger seat heat high", lambda f, v: f.seat_heater(1, 3)),
+    "passenger_seat_heat_off": ("passenger seat heat off", lambda f, v: f.seat_heater(1, 0)),
+    "wheel_heat_on": ("steering wheel heat on", lambda f, v: f.steering_wheel_heater(True)),
+    "wheel_heat_off": ("steering wheel heat off", lambda f, v: f.steering_wheel_heater(False)),
+    "sentry_on": ("Sentry Mode on", lambda f, v: f.sentry_mode(True)),
+    "sentry_off": ("Sentry Mode off", lambda f, v: f.sentry_mode(False)),
+    "set_temp": ("temperature set", lambda f, v: f.set_temps(v)),
 }
 
 
 class CommandRequest(BaseModel):
     action: str
+    value: float | None = None  # set_temp: °C
 
 
 @app.post("/api/command", dependencies=[Depends(require_token)])
@@ -331,10 +379,14 @@ async def command(req: CommandRequest) -> dict:
     if req.action not in COMMANDS:
         raise HTTPException(400, f"unknown action; one of {sorted(COMMANDS)}")
     desc, fn = COMMANDS[req.action]
-    f = FleetClient(get_settings())
+    if req.action == "set_temp":
+        if req.value is None or not 15 <= req.value <= 28:
+            raise HTTPException(400, "set_temp needs a value between 15 and 28 °C")
+        desc = f"temperature set to {req.value:g}°C"
+    f = _fleet()
     try:
         await f.wake()
-        await fn(f)
+        await fn(f, req.value)
     except (FleetError, authmod.AuthError) as e:
         raise _fleet_error(e)
     return {"ok": True, "done": desc}
@@ -372,7 +424,7 @@ async def depart(req: DepartRequest) -> dict:
         if not t.done():
             t.cancel()
     sess = sessmod.Session(label=label, departure=at, dry_run=req.dry_run, lat=req.lat, lon=req.lon, sentry=req.sentry)
-    task = asyncio.create_task(sessmod.run(sess, get_settings()))
+    task = asyncio.create_task(sessmod.run(sess, get_settings(), fleet=_fleet()))
     _sessions[sess.id] = (sess, task)
     await asyncio.sleep(0)
     return sess.to_dict()

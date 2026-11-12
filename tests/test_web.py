@@ -121,3 +121,27 @@ def test_alerts_endpoint_flags_camera(client, monkeypatch):
     r = c.post("/api/vehicle/alerts", json={}).json()
     assert [a["camera"] for a in r] == [False, True]  # newest first
     assert r[1]["text"] == "Camera blocked or blinded"
+
+
+def test_demo_mode_drives_simulated_car(tmp_path, monkeypatch):
+    from clearview import demo
+
+    s = Settings(CLEARVIEW_API_TOKEN="t", CLEARVIEW_DEMO=True, token_file=tmp_path / "tokens.json", _env_file=None)
+    monkeypatch.setattr(server, "get_settings", lambda: s)
+    monkeypatch.setattr(server, "_demo_fleet", demo.DemoFleet(s, delay_s=0))
+    c = TestClient(server.app)
+    h = {"Authorization": "Bearer t"}
+    assert c.get("/api/overview", headers=h).json()["tesla"]["logged_in"] is True
+    assert c.post("/api/command", json={"action": "defrost_on"}, headers=h).json()["ok"]
+    assert c.post("/api/command", json={"action": "set_temp", "value": 22.5}, headers=h).json()["done"] == "temperature set to 22.5°C"
+    snap = c.post("/api/vehicle/snapshot", json={}, headers=h).json()
+    assert snap["front_defrost"] and snap["rear_defrost"] and snap["driver_temp_setting"] == 22.5
+    ov = c.get("/api/overview", headers=h).json()
+    assert ov["snapshot"]["front_defrost"] and ov["locations"]["car"] is not None
+
+
+def test_set_temp_validates_range(client):
+    c, _ = client
+    c.post("/api/login", json={"token": "secret-token"})
+    assert c.post("/api/command", json={"action": "set_temp", "value": 40}).status_code == 400
+    assert c.post("/api/command", json={"action": "set_temp"}).status_code == 400

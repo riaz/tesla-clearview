@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     # How your browser reaches this server, e.g. http://homeserver.local:8787. The Pages
     # callback bounces the Tesla login back here. Empty = use the URL the dashboard was opened on.
     public_url: str = Field(default="", alias="CLEARVIEW_PUBLIC_URL")
+    # Simulated car for trying the dashboard; never touches the real car.
+    demo: bool = Field(default=False, alias="CLEARVIEW_DEMO")
 
     @property
     def fleet_base(self) -> str:

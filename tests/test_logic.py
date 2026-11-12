@@ -149,6 +149,8 @@ async def test_session_cold_car_runs_and_auto_stops():
     assert sess.status == "done"
     assert "climate_on" in fleet.calls and "seat" in fleet.calls
     assert fleet.calls[-1] == "climate_off"  # not driving after grace -> stopped
+    assert sess.woke_at and sess.checked_at and sess.acted_at and sess.glass
+    assert sess.to_dict()["woke_at"]
     assert any("Climate stopped" in m for m in n.msgs)
 
 
