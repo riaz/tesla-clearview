@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import cameras, fog as fogmod, planner, vision, weather
+from . import cameras, fog as fogmod, location, planner, vision, weather
 from .config import Settings
 from .fleet import FleetClient, FleetError, VehicleAsleep
 from .notify import Notifier
@@ -28,6 +28,9 @@ class Session:
     label: str
     departure: datetime
     dry_run: bool = False
+    lat: float | None = None  # where you are when asking (phone GPS); optional
+    lon: float | None = None
+    sentry: bool | None = None  # turn Sentry on while preparing; None = SENTRY_ON_DEPART
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     status: str = "scheduled"
     start_at: datetime | None = None
@@ -63,6 +66,7 @@ async def run(session: Session, settings: Settings, fleet: FleetClient | None = 
     fleet = fleet or FleetClient(s)
     notifier = notifier or Notifier(s)
     started_climate = False
+    started_sentry = False
 
     async def cmd(coro_fn, *args, desc: str):
         if session.dry_run:
@@ -78,12 +82,16 @@ async def run(session: Session, settings: Settings, fleet: FleetClient | None = 
         # 1. Work out lead time from the weather, without waking the car.
         pre_fog = None
         pre_w = None
-        if s.home_lat is not None and s.home_lon is not None:
+        pre_loc = location.resolve(s, session.lat, session.lon)
+        if pre_loc:
             try:
-                pre_w = await weather.current(s.home_lat, s.home_lon)
+                pre_w = await weather.current(pre_loc.lat, pre_loc.lon)
                 pre_fog = fogmod.assess(pre_w)
+                session.note(f"planning with weather at {pre_loc.describe()}: {pre_w.temp_c}°C, dew point {pre_w.dew_point_c}°C")
             except Exception as e:  # weather is best-effort
                 session.note(f"weather lookup failed: {e}")
+        else:
+            session.note("no location yet; using the default lead time (send your phone's location to plan for fog/frost)")
         lead = planner.lead_minutes(pre_fog, pre_w.temp_c if pre_w else None, s.default_lead_min, s.defrost_lead_min)
         session.start_at = max(datetime.now(), session.departure - timedelta(minutes=lead))
         session.note(f"leaving for {session.label} at {session.departure:%H:%M}; starting at {session.start_at:%H:%M} (lead {lead} min)")
@@ -105,12 +113,17 @@ async def run(session: Session, settings: Settings, fleet: FleetClient | None = 
             session.status = "done"
             return session
 
-        # 3. Weather at the car's location; fall back to home.
+        want_sentry = s.sentry_on_depart if session.sentry is None else session.sentry
+        if want_sentry and not snap.sentry_mode:
+            await cmd(fleet.sentry_mode, True, desc="sentry mode on")
+            started_sentry = not session.dry_run
+
+        # 3. Weather at the car's own GPS position; otherwise keep the pre-wake weather.
         w = pre_w
-        lat, lon = snap.latitude or s.home_lat, snap.longitude or s.home_lon
-        if lat is not None and lon is not None:
+        if snap.latitude is not None and snap.longitude is not None:
+            location.save_car_location(s, snap.latitude, snap.longitude)
             try:
-                w = await weather.current(lat, lon)
+                w = await weather.current(snap.latitude, snap.longitude)
             except Exception as e:
                 session.note(f"weather lookup failed: {e}")
         fog = fogmod.assess(w, cabin_temp_c=snap.inside_temp) if w else None
@@ -181,18 +194,27 @@ async def run(session: Session, settings: Settings, fleet: FleetClient | None = 
                 priority="high", tags=["warning"], attachment=worst_frame,
             )
 
-        # 6. Auto-off if you don't leave.
-        if started_climate:
-            session.status = "climate_running"
+        # 6. Auto-off if you don't leave: undo whatever clearview switched on.
+        if started_climate or started_sentry:
+            session.status = "climate_running" if started_climate else "sentry_running"
             await _sleep_until(session.departure + timedelta(minutes=s.stop_grace_min))
             try:
                 snap2 = await fleet.snapshot()
-                if not snap2.is_driving and snap2.is_climate_on:
-                    await cmd(fleet.max_defrost, False, desc="max defrost off")
-                    await cmd(fleet.climate_off, desc="climate off (no departure detected)")
-                    await notifier.send("🛑 Climate stopped", f"You didn't leave for {session.label}; climate turned off to save battery.")
+                if not snap2.is_driving:
+                    stopped = []
+                    if started_climate and snap2.is_climate_on:
+                        await cmd(fleet.max_defrost, False, desc="max defrost off")
+                        await cmd(fleet.climate_off, desc="climate off (no departure detected)")
+                        stopped.append("climate")
+                    if started_sentry and snap2.sentry_mode:
+                        await cmd(fleet.sentry_mode, False, desc="sentry mode off (no departure detected)")
+                        stopped.append("Sentry Mode")
+                    if stopped:
+                        await notifier.send(
+                            "🛑 Climate stopped" if started_climate and "climate" in stopped else "🛑 Sentry Mode off",
+                            f"You didn't leave for {session.label}; {' and '.join(stopped)} turned off to save battery.")
             except VehicleAsleep:
-                session.note("car asleep at grace check; climate already off")
+                session.note("car asleep at grace check; climate and Sentry already off")
 
         session.status = "done"
         return session
@@ -207,6 +229,12 @@ async def run(session: Session, settings: Settings, fleet: FleetClient | None = 
                 session.note("climate off (cancel)")
             except FleetError as e:
                 session.note(f"failed to stop climate on cancel: {e}")
+        if started_sentry:
+            try:
+                await fleet.sentry_mode(False)
+                session.note("sentry mode off (cancel)")
+            except FleetError as e:
+                session.note(f"failed to turn off sentry on cancel: {e}")
         raise
     except Exception as e:
         session.status = "error"

@@ -64,8 +64,8 @@ def status(wake: bool = typer.Option(False, help="Wake the car first (uses batte
     print(json.dumps(asyncio.run(go()).__dict__, indent=2, default=str))
 
 
-def _run_session(label: str, at: datetime, dry_run: bool) -> None:
-    s = sessmod.Session(label=label, departure=at, dry_run=dry_run)
+def _run_session(label: str, at: datetime, dry_run: bool, lat: float | None = None, lon: float | None = None) -> None:
+    s = sessmod.Session(label=label, departure=at, dry_run=dry_run, lat=lat, lon=lon)
     print(f"Departure '{label}' at {at:%H:%M}. Ctrl-C cancels (and turns climate off if clearview started it).")
     try:
         asyncio.run(sessmod.run(s, get_settings()))
@@ -80,16 +80,23 @@ def depart(
     label: str = typer.Argument("drive", help="Where you're going, e.g. 'work'"),
     minutes: float = typer.Option(10, "--in", help="Minutes until you leave"),
     dry_run: bool = typer.Option(False, help="Check everything but send no commands to the car"),
+    lat: float = typer.Option(None, help="Where you are now (defaults to the car's last known position)"),
+    lon: float = typer.Option(None),
 ) -> None:
     """Prepare the car for a departure N minutes from now."""
-    _run_session(label, datetime.now() + timedelta(minutes=minutes), dry_run)
+    _run_session(label, datetime.now() + timedelta(minutes=minutes), dry_run, lat, lon)
 
 
 @app.command()
-def say(text: str, dry_run: bool = typer.Option(False)) -> None:
+def say(
+    text: str,
+    dry_run: bool = typer.Option(False),
+    lat: float = typer.Option(None, help="Where you are now (defaults to the car's last known position)"),
+    lon: float = typer.Option(None),
+) -> None:
     """Natural phrasing: clearview say "leaving for work in 10 min"."""
     d = parse_departure(text)
-    _run_session(d.label, d.at, dry_run)
+    _run_session(d.label, d.at, dry_run, lat, lon)
 
 
 @app.command()
@@ -120,10 +127,14 @@ def analyze(
 
 @app.command()
 def serve() -> None:
-    """Run the HTTP trigger API (for iOS Shortcuts / Siri)."""
+    """Run the web dashboard + HTTP trigger API (for the browser, iOS Shortcuts / Siri)."""
     import uvicorn
 
     s = get_settings()
+    if not s.api_token:
+        raise typer.Exit("Set CLEARVIEW_API_TOKEN in .env first (openssl rand -hex 24).")
+    shown = s.public_url or f"http://{'localhost' if s.api_host in ('0.0.0.0', '127.0.0.1') else s.api_host}:{s.api_port}"
+    print(f"Dashboard: {shown}  (sign in with CLEARVIEW_API_TOKEN)")
     uvicorn.run("clearview.server:app", host=s.api_host, port=s.api_port)
 
 

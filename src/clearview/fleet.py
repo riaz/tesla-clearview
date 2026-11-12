@@ -165,3 +165,7 @@ class FleetClient:
 
     async def steering_wheel_heater(self, on: bool) -> None:
         await self.command("remote_steering_wheel_heater_request", {"on": on})
+
+    async def sentry_mode(self, on: bool) -> None:
+        # Keeps the car awake with cameras watching; costs battery. Disengages when you drive.
+        await self.command("set_sentry_mode", {"on": on})

@@ -20,6 +20,7 @@ $ clearview say "leaving for work in 10 min"
 | Front + rear defrost | Yes: `set_preconditioning_max` | Used when fog or frost risk is high |
 | Point vents at side windows | **No**: vent direction can't be set remotely | Max Defrost already sends air to the windscreen and side demist vents. A/C on dries the cabin air. |
 | Camera-blocked warnings | Partly: `recent_alerts` | Matched for camera-related alerts |
+| Sentry Mode on/off | Yes: `set_sentry_mode` | Dashboard button. `SENTRY_ON_DEPART` (or the "Sentry on" box) turns it on during a departure session and back off if you don't leave |
 | Climate, seat/wheel heat | Yes | Used |
 
 The front camera sits behind the windscreen, so fog there shows up in its frames. Tesla heats that small patch of glass, though, so the weather model still matters. No camera sees the rear window.
@@ -36,6 +37,10 @@ uv run clearview vehicles
 uv run clearview depart work --in 10 --dry-run
 ```
 
+## Dashboard
+
+`clearview serve` also serves a web dashboard on your home server: setup checklist, Tesla login, car status, glass fog/frost risk, "leaving in N min", live sessions with cancel, and manual climate/defrost/seat-heat controls. A GitHub Pages site hosts only the public key and the login callback page. See [docs/SETUP.md](docs/SETUP.md).
+
 ## Usage
 
 ```bash
@@ -43,7 +48,7 @@ clearview say "leaving for the gym at 6:30am"
 clearview depart work --in 15
 clearview analyze /Volumes/TESLADRIVE/TeslaCam --notify   # camera check only, no car connection
 clearview status --wake
-clearview serve                                            # HTTP API for Siri / Shortcuts
+clearview serve                                            # dashboard + HTTP API for Siri / Shortcuts
 ```
 
 ### From your phone (Siri / iOS Shortcut)
@@ -51,7 +56,10 @@ clearview serve                                            # HTTP API for Siri /
 Run `clearview serve` on an always-on machine (Mac mini, Pi, NAS). Reach it over [Tailscale](https://tailscale.com) rather than opening a port. Then create a Shortcut:
 
 1. *Dictate Text* → "leaving for work in 10 minutes"
-2. *Get Contents of URL* → `POST http://<host>:8787/depart`, header `Authorization: Bearer <CLEARVIEW_API_TOKEN>`, JSON body `{"text": "<Dictated Text>"}`
+2. *Get Current Location*
+3. *Get Contents of URL* → `POST http://<host>:8787/depart`, header `Authorization: Bearer <CLEARVIEW_API_TOKEN>`, JSON body `{"text": "<Dictated Text>", "lat": <Latitude>, "lon": <Longitude>}`
+
+Your phone's location lets clearview plan for fog or frost wherever the car is (home, a hotel, the office) before it wakes the car. Without it, clearview uses the car's last known position. After the car wakes, its own GPS decides.
 
 Say "Hey Siri, *Car ready*". Notifications arrive in the [ntfy](https://ntfy.sh) app (subscribe to your `NTFY_TOPIC`). `DELETE /sessions/{id}` cancels a session and turns climate off.
 

@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>clearview</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f2f2f5; --card: #ffffff; --fg: #1c1c1e; --muted: #6b6b72; --line: #e3e3e8;
+    --accent: #0a66d8; --accent-fg: #fff; --ok: #1f8a4c; --warn: #b26a00; --bad: #c62828;
+    --chip: #ececf1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0e0e10; --card: #1a1a1d; --fg: #f2f2f5; --muted: #9a9aa2; --line: #2c2c31;
+      --accent: #4c9dff; --accent-fg: #0b0b0c; --ok: #4cc27a; --warn: #f0a640; --bad: #ff6b6b; --chip: #26262b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  main { max-width: 960px; margin: 0 auto; padding: 16px 16px 48px; }
+  header { display: flex; align-items: center; gap: 12px; padding: 8px 0 16px; }
+  header h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  header .car { color: var(--muted); }
+  header .spacer { flex: 1; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .card { background: var(--card); border-radius: 14px; padding: 18px; border: 1px solid var(--line); min-width: 0; }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px; }
+  .card h2 .spacer { flex: 1; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; }
+  .stat .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 12px; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  button, .btn { font: inherit; border: 1px solid var(--line); background: var(--chip); color: var(--fg);
+    padding: 8px 14px; border-radius: 10px; cursor: pointer; text-decoration: none; display: inline-block; }
+  button.primary, .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; font-weight: 600; }
+  button.danger { color: var(--bad); }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .controls { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  input[type=text], input[type=password] { font: inherit; width: 100%; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+  .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--chip); }
+  .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
+  .checklist { list-style: none; padding: 0; margin: 0; }
+  .checklist li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+  .checklist li:first-child { border-top: 0; }
+  .checklist .mark { font-weight: 700; text-align: center; }
+  .checklist .mark.ok { color: var(--ok); } .checklist .mark.bad { color: var(--bad); } .checklist .mark.unk { color: var(--muted); }
+  .checklist .t { font-weight: 600; }
+  .checklist .d { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  .alert { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); }
+  .alert:first-child { border-top: 0; padding-top: 0; }
+  .alert .when { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .alert .what { overflow-wrap: anywhere; }
+  .alert .code { font: 11px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .session { border-top: 1px solid var(--line); padding: 12px 0; }
+  .session:first-child { border-top: 0; padding-top: 0; }
+  .session .top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .session .top .spacer { flex: 1; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 6px; }
+  pre { white-space: pre-wrap; font: 12px/1.5 ui-monospace, Menlo, monospace; margin: 6px 0 0; color: var(--muted); }
+  .banner { padding: 10px 14px; border-radius: 10px; margin-bottom: 16px; background: var(--card); border: 1px solid var(--line); }
+  .banner.bad { color: var(--bad); } .banner.ok { color: var(--ok); }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--fg); color: var(--bg);
+    padding: 10px 16px; border-radius: 10px; max-width: calc(100% - 32px); opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  #login { max-width: 380px; margin: 14vh auto; }
+  label.check { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; }
+  .hidden, .pill:empty { display: none !important; }
+</style>
+</head>
+<body>
+
+<main id="login" class="hidden">
+  <div class="card">
+    <h1 style="margin:0 0 6px;font-size:22px">clearview</h1>
+    <p class="muted small" style="margin:0 0 14px">Enter your <code>CLEARVIEW_API_TOKEN</code>.</p>
+    <form id="loginForm" class="row">
+      <input type="password" id="tokenInput" autocomplete="current-password" placeholder="API token" required>
+      <button class="primary" style="width:100%">Sign in</button>
+    </form>
+    <p id="loginErr" class="small" style="color:var(--bad)"></p>
+  </div>
+</main>
+
+<main id="app" class="hidden">
+  <header>
+    <h1>clearview</h1>
+    <span class="car" id="carName"></span>
+    <span class="pill" id="carState"></span>
+    <span class="spacer"></span>
+    <button id="signOut" class="small">Sign out</button>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+
+  <div class="grid">
+    <section class="card wide" id="setupCard">
+      <h2>Setup <span id="setupAll" class="pill ok hidden" style="text-transform:none;letter-spacing:0">All set</span><span class="spacer"></span><button id="toggleSetup" class="small hidden">Show</button><button id="recheck" class="small">Re-check</button></h2>
+      <ul class="checklist" id="checklist"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Car <span class="spacer"></span><span class="muted small" id="snapTime" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
+      <div class="stats" id="carStats"><div class="muted small" style="grid-column:1/-1">No reading yet. Reading only works while the car is awake. "Wake &amp; read" wakes it, which uses a little battery and API credit.</div></div>
+      <div class="row" style="margin-top:14px">
+        <button id="readBtn">Read</button>
+        <button id="wakeReadBtn">Wake &amp; read</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Glass conditions <span class="spacer"></span><span id="fogPill" class="pill"></span></h2>
+      <div id="conditions"><span class="muted small">Loading…</span></div>
+    </section>
+
+    <section class="card">
+      <h2>Car alerts <span class="spacer"></span><span id="alertsCount" class="pill"></span></h2>
+      <div id="alerts" class="muted small">Shown after "Read" or "Wake &amp; read". Camera warnings are highlighted. The car usually only raises these while driving.</div>
+    </section>
+
+    <section class="card">
+      <h2>Leaving soon</h2>
+      <form id="departForm">
+        <input type="text" id="departText" placeholder="leaving for work in 10 min" autocomplete="off">
+        <div class="row" style="margin-top:10px">
+          <button type="button" data-min="10">10 min</button>
+          <button type="button" data-min="15">15 min</button>
+          <button type="button" data-min="20">20 min</button>
+          <button type="button" data-min="30">30 min</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="primary">Get the car ready</button>
+          <label class="check"><input type="checkbox" id="sentryDepart"> Sentry on</label>
+          <label class="check"><input type="checkbox" id="dryRun"> Dry run</label>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Controls</h2>
+      <div class="controls">
+        <button data-cmd="defrost_on">Max defrost on</button>
+        <button data-cmd="defrost_off">Max defrost off</button>
+        <button data-cmd="climate_on">Climate on</button>
+        <button data-cmd="climate_off">Climate off</button>
+        <button data-cmd="seat_heat_high">Seat heat high</button>
+        <button data-cmd="seat_heat_off">Seat heat off</button>
+        <button data-cmd="wheel_heat_on">Wheel heat on</button>
+        <button data-cmd="wheel_heat_off">Wheel heat off</button>
+        <button data-cmd="sentry_on">Sentry on</button>
+        <button data-cmd="sentry_off">Sentry off</button>
+      </div>
+      <p class="muted small" style="margin:10px 0 0">Each button wakes the car and sends a signed command through your local proxy. Sentry keeps the car awake and uses battery. It also helps if you want Live Camera in the Tesla app.</p>
+    </section>
+
+    <section class="card wide">
+      <h2>Sessions</h2>
+      <div id="sessions" class="muted small">None yet.</div>
+    </section>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const el = (tag, props = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k != null) n.append(k instanceof Node ? k : String(k));
+  return n;
+};
+
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 3500);
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {
+    method: opts.method || (opts.body ? "POST" : "GET"),
+    headers: opts.body ? { "Content-Type": "application/json" } : {},
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    credentials: "same-origin",
+  });
+  if (r.status === 401) {
+    showLogin(); throw new Error("signed out");
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : r.statusText);
+  return data;
+}
+
+async function busy(btn, fn) {
+  const label = btn.textContent; btn.disabled = true; btn.textContent = "…";
+  try { return await fn(); } catch (e) { if (e.message !== "signed out") toast(e.message); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+
+// ---------- login ----------
+function showLogin() { $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); $("#tokenInput").focus(); }
+$("#loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); $("#loginErr").textContent = "";
+  try { await api("/api/login", { body: { token: $("#tokenInput").value } }); $("#tokenInput").value = ""; start(); }
+  catch (err) { $("#loginErr").textContent = err.message; }
+});
+$("#signOut").addEventListener("click", async () => { await api("/api/logout", { body: {} }).catch(() => {}); showLogin(); });
+
+// ---------- setup checklist ----------
+let overview = null, check = null;
+function item(state, title, detail, action) {
+  const mark = { ok: "✓", bad: "✕", unk: "•" }[state];
+  return el("li", {}, el("span", { class: "mark " + state }, mark),
+    el("div", {}, el("div", { class: "t" }, title), detail ? el("div", { class: "d" }, detail) : null),
+    action || el("span"));
+}
+function renderSetup() {
+  const o = overview, c = check || {}, cfg = o.config, list = $("#checklist");
+  list.replaceChildren();
+  const pk = c.public_key, cb = c.callback, px = c.proxy;
+  list.append(item(cfg.client_id_set ? "ok" : "bad", "Developer app credentials",
+    cfg.client_id_set ? "TESLA_CLIENT_ID and TESLA_CLIENT_SECRET are set." : "Create the app at developer.tesla.com and put the ID and secret in .env."));
+  list.append(item(!cfg.domain ? "bad" : !pk ? "unk" : pk.matches_local ? "ok" : "bad", "Public key on your Pages site",
+    !cfg.domain ? "Set TESLA_DOMAIN (e.g. you.github.io)." :
+    !pk ? "Checking…" : pk.error ? pk.error :
+    pk.matches_local ? `https://${cfg.domain}/.well-known/appspecific/com.tesla.3p.public-key.pem` :
+    !pk.local_found ? "config/fleet-public-key.pem not found; run ./scripts/gen_keys.sh." :
+    pk.status !== 200 ? `Not served yet (HTTP ${pk.status}). Run ./scripts/publish_site.sh.` : "Served key differs from config/fleet-public-key.pem."));
+  list.append(item(!cfg.redirect_uri ? "bad" : !cb ? "unk" : cb.is_clearview ? "ok" : "bad", "Login callback page",
+    !cfg.redirect_uri ? "Set TESLA_REDIRECT_URI to https://<you>.github.io/callback/." :
+    !cb ? (cfg.redirect_uri.startsWith("https://") ? "Checking…" : cfg.redirect_uri) :
+    cb.error ? cb.error : cb.is_clearview ? cfg.redirect_uri : `${cfg.redirect_uri} returned HTTP ${cb.status}. Run ./scripts/publish_site.sh.`));
+  list.append(item("unk", "Domain registered with Tesla",
+    `Once per region (${cfg.region}). Safe to repeat.`,
+    el("button", { class: "small", onclick: (e) => busy(e.target, async () => { await api("/api/tesla/register", { body: {} }); toast("Domain registered"); }) }, "Register")));
+  const tl = o.tesla.logged_in;
+  list.append(item(tl ? "ok" : "bad", "Tesla account connected",
+    tl ? "Tokens stored on this server; refreshed automatically." : "Sign in with Tesla. You'll pass through your Pages callback and land back here.",
+    tl ? el("button", { class: "small", onclick: (e) => busy(e.target, async () => { await api("/api/tesla/logout", { body: {} }); refresh(); }) }, "Disconnect")
+       : el("a", { class: "btn primary small", href: "/auth/login" }, "Connect")));
+  list.append(item("unk", "Virtual key on the car",
+    "Open this link on your phone (Tesla app installed) and approve it with your key card in the car.",
+    cfg.pair_url ? el("a", { class: "btn small", href: cfg.pair_url, target: "_blank", rel: "noopener" }, "Pair") : null));
+  list.append(item(!cfg.proxy ? "unk" : !px ? "unk" : px.reachable ? "ok" : "bad", "Command signing proxy",
+    !cfg.proxy ? "No proxy configured (only for pre-2021 Model S/X)." : !px ? "Checking…" :
+    px.reachable ? cfg.proxy : `Can't reach ${cfg.proxy}. Run: docker compose up -d`));
+  const allOk = cfg.client_id_set && tl && pk?.matches_local && cb?.is_clearview && (!cfg.proxy || px?.reachable);
+  if (allOk !== lastAllOk) { lastAllOk = allOk; list.classList.toggle("hidden", !!allOk); }
+  $("#setupAll").classList.toggle("hidden", !allOk);
+  $("#toggleSetup").classList.toggle("hidden", !allOk);
+  $("#toggleSetup").textContent = list.classList.contains("hidden") ? "Show" : "Hide";
+}
+let lastAllOk = null;
+$("#toggleSetup").addEventListener("click", () => { $("#checklist").classList.toggle("hidden"); renderSetup(); });
+
+// ---------- car ----------
+const fmtT = (v) => v == null ? "—" : `${Math.round(v * 10) / 10}°`;
+function renderSnapshot(s) {
+  if (!s) return;
+  const stats = [
+    ["Battery", s.battery_level == null ? "—" : s.battery_level + "%"],
+    ["Inside", fmtT(s.inside_temp)], ["Outside", fmtT(s.outside_temp)],
+    ["Climate", s.is_climate_on ? "On" : "Off"],
+    ["Defrost", s.front_defrost || s.rear_defrost ? [s.front_defrost && "Front", s.rear_defrost && "Rear"].filter(Boolean).join(" + ") : "Off"],
+    ["Gear", s.shift_state || "P"], ["Sentry", s.sentry_mode == null ? "—" : s.sentry_mode ? "On" : "Off"],
+  ];
+  $("#carStats").replaceChildren(...stats.map(([l, v]) => el("div", { class: "stat" }, el("div", { class: "v" }, v), el("div", { class: "l" }, l))));
+  $("#snapTime").textContent = s.fetched_at ? "read " + new Date(s.fetched_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+}
+async function loadVehicles() {
+  try {
+    const vs = await api("/api/vehicles");
+    const v = vs[0];
+    $("#carName").textContent = v ? (v.name || v.vin) : "No vehicles";
+    const st = $("#carState"); st.textContent = v ? v.state : ""; st.className = "pill " + (v?.state === "online" ? "ok" : "warn");
+  } catch (e) { $("#carName").textContent = ""; $("#carState").textContent = ""; }
+}
+async function readCar(wake, btn) {
+  await busy(btn, async () => {
+    renderSnapshot(await api("/api/vehicle/snapshot", { body: { wake } }));
+    loadVehicles(); loadConditions(); loadAlerts();
+  });
+}
+$("#readBtn").addEventListener("click", (e) => readCar(false, e.target));
+$("#wakeReadBtn").addEventListener("click", (e) => readCar(true, e.target));
+
+// ---------- car alerts ----------
+async function loadAlerts() {
+  const box = $("#alerts"), count = $("#alertsCount");
+  try {
+    const list = await api("/api/vehicle/alerts", { body: { wake: false } });
+    const cams = list.filter((a) => a.camera).length;
+    count.className = "pill " + (cams ? "bad" : "");
+    count.textContent = cams ? `${cams} camera` : list.length ? String(list.length) : "";
+    if (!list.length) { box.replaceChildren(el("span", { class: "muted small" }, "No recent alerts.")); return; }
+    const when = (t) => { const d = new Date(t); return isNaN(d) ? "" : d.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); };
+    box.className = "";
+    box.replaceChildren(...list.slice(0, 15).map((a) => el("div", { class: "alert" },
+      el("span", { class: "when" }, when(a.time)),
+      el("div", {}, el("div", { class: "what small" }, a.text || a.name), a.text !== a.name ? el("div", { class: "code" }, a.name) : null),
+      a.camera ? el("span", { class: "pill bad" }, "camera") : el("span"))));
+  } catch (e) { box.replaceChildren(el("span", { class: "muted small" }, e.message)); }
+}
+
+// ---------- your location (phone/laptop GPS) ----------
+// Browsers only share location on secure pages: https:// or localhost. On plain http over
+// the LAN this quietly falls back to the car's last known position.
+let here = null;
+function getHere() {
+  if (!window.isSecureContext || !navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => navigator.geolocation.getCurrentPosition(
+    (p) => { here = { lat: +p.coords.latitude.toFixed(3), lon: +p.coords.longitude.toFixed(3) }; resolve(here); },
+    () => resolve(null), { timeout: 8000, maximumAge: 10 * 60 * 1000 }));
+}
+
+// ---------- conditions ----------
+async function loadConditions() {
+  const box = $("#conditions"), pill = $("#fogPill");
+  try {
+    await getHere();
+    const c = await api("/api/conditions" + (here ? `?lat=${here.lat}&lon=${here.lon}` : ""));
+    if (!c.available) { box.replaceChildren(el("span", { class: "muted small" }, c.reason)); pill.textContent = ""; return; }
+    const w = c.weather, f = c.fog;
+    const cls = { NONE: "ok", LOW: "ok", MEDIUM: "warn", HIGH: "bad" }[f.overall];
+    pill.className = "pill " + cls; pill.textContent = f.frost ? "Frost likely" : `Fog risk ${f.overall.toLowerCase()}`;
+    box.replaceChildren(
+      el("div", { class: "stats" },
+        ...[["Air", fmtT(w.temp_c)], ["Dew point", fmtT(w.dew_point_c)], ["Glass est.", fmtT(f.glass_temp_c)], ["Humidity", Math.round(w.humidity_pct) + "%"]]
+          .map(([l, v]) => el("div", { class: "stat" }, el("div", { class: "v" }, v), el("div", { class: "l" }, l)))),
+      el("p", { class: "small", style: "margin:12px 0 0" }, `Outside glass: ${f.exterior.toLowerCase()} · inside: ${f.interior.toLowerCase()}` + (f.reasons.length ? ` — ${f.reasons.join("; ")}` : "")),
+      el("p", { class: "small muted", style: "margin:4px 0 0" }, "At " + c.source_text + "." +
+        (!window.isSecureContext && c.source !== "phone" ? " Open the dashboard over https to use your current location." : "")));
+  } catch (e) { box.replaceChildren(el("span", { class: "muted small" }, e.message)); }
+}
+
+// ---------- depart ----------
+document.querySelectorAll("[data-min]").forEach((b) => b.addEventListener("click", () => {
+  $("#departText").value = `leaving in ${b.dataset.min} min`; $("#departText").focus();
+}));
+$("#departForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const btn = e.submitter || e.target.querySelector(".primary");
+  const text = $("#departText").value.trim();
+  if (!text) { toast("Say when you're leaving, e.g. \"work in 10 min\""); return; }
+  busy(btn, async () => {
+    await getHere();
+    const s = await api("/depart", { body: { text, dry_run: $("#dryRun").checked, sentry: $("#sentryDepart").checked, ...(here || {}) } });
+    $("#departText").value = "";
+    toast(`${s.label}: leaving ${new Date(s.departure).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+    refresh();
+  });
+});
+
+// ---------- controls ----------
+document.querySelectorAll("[data-cmd]").forEach((b) => b.addEventListener("click", () => {
+  if (!confirm(`${b.textContent}? This wakes the car.`)) return;
+  busy(b, async () => { const r = await api("/api/command", { body: { action: b.dataset.cmd } }); toast("Done: " + r.done); });
+}));
+
+// ---------- sessions ----------
+const FINISHED = ["done", "cancelled", "error"];
+function renderSessions(list) {
+  const box = $("#sessions");
+  if (!list.length) { box.textContent = "None yet."; return; }
+  box.replaceChildren(...list.map((s) => {
+    const active = !FINISHED.includes(s.status);
+    const cls = s.status === "error" ? "bad" : active ? "warn" : "ok";
+    const t = (iso) => iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+    return el("div", { class: "session" },
+      el("div", { class: "top" },
+        el("strong", {}, s.label), el("span", { class: "muted small" }, `leave ${t(s.departure)} · start ${t(s.start_at)}`),
+        s.dry_run ? el("span", { class: "pill" }, "dry run") : null,
+        el("span", { class: "pill " + cls }, s.status.replace("_", " ")),
+        el("span", { class: "spacer" }),
+        active ? el("button", { class: "small danger", onclick: (e) => busy(e.target, async () => { await api(`/sessions/${s.id}`, { method: "DELETE" }); refresh(); }) }, "Cancel") : null),
+      s.plan ? el("div", { class: "small", style: "margin-top:4px" }, s.plan) : null,
+      s.events.length ? el("details", {}, el("summary", {}, `${s.events.length} events`), el("pre", {}, s.events.join("\n"))) : null);
+  }));
+}
+
+// ---------- boot ----------
+let pollTimer, sentryDefaultApplied = false;
+async function refresh() {
+  overview = await api("/api/overview");
+  renderSetup(); renderSnapshot(overview.snapshot); renderSessions(overview.sessions);
+  if (!sentryDefaultApplied) { $("#sentryDepart").checked = !!overview.config.sentry_on_depart; sentryDefaultApplied = true; }
+  clearTimeout(pollTimer);
+  if (overview.sessions.some((s) => !FINISHED.includes(s.status))) pollTimer = setTimeout(refresh, 5000);
+}
+async function runChecks() {
+  check = null; if (overview) renderSetup();
+  try { check = await api("/api/setup-check"); } catch (e) { check = {}; }
+  if (overview) renderSetup();
+}
+$("#recheck").addEventListener("click", (e) => busy(e.target, async () => { await refresh(); await runChecks(); }));
+
+async function start() {
+  try { await refresh(); } catch (e) { return; }
+  $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
+  const q = new URLSearchParams(location.search);
+  const b = $("#banner");
+  if (q.get("login_error")) { b.textContent = "Tesla login failed: " + q.get("login_error"); b.className = "banner bad"; }
+  else if (q.get("login") === "ok") { b.textContent = "Tesla account connected."; b.className = "banner ok"; }
+  if (q.toString()) history.replaceState(null, "", "/");
+  runChecks();
+  loadConditions();
+  if (overview.tesla.logged_in) loadVehicles();
+}
+start();
+</script>
+</body>
+</html>

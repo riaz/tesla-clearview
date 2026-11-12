@@ -104,12 +104,16 @@ def decide(
 _CAM_WORDS = ("camera", "cam_", "_cam", "blind", "obstruct", "occlu", "repeater", "pillar")
 
 
+def is_camera_alert(a: dict) -> bool:
+    text = f"{a.get('name', '')} {a.get('user_text', '')}".lower()
+    return any(w in text for w in _CAM_WORDS)
+
+
 def car_camera_alerts(alerts: list[dict]) -> list[str]:
     """Pick the car's own camera-blocked/blinded warnings out of `recent_alerts`."""
     out = []
     for a in alerts:
-        text = f"{a.get('name', '')} {a.get('user_text', '')}".lower()
-        if any(w in text for w in _CAM_WORDS):
+        if is_camera_alert(a):
             out.append(f"car alert: {a.get('user_text') or a.get('name')}")
     return list(dict.fromkeys(out))
 

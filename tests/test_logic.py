@@ -128,6 +128,7 @@ class FakeFleet:
     async def max_defrost(self, on): self.calls.append(f"defrost {on}")
     async def seat_heater(self, seat, lvl): self.calls.append("seat")
     async def steering_wheel_heater(self, on): self.calls.append("wheel")
+    async def sentry_mode(self, on): self.calls.append(f"sentry {on}"); self.snap.sentry_mode = on
 
 
 class FakeNotifier:
@@ -156,3 +157,28 @@ async def test_session_skips_when_driving():
     fleet = FakeFleet(snap(shift_state="D"))
     sess = await run(Session(label="x", departure=datetime.now()), s, fleet=fleet, notifier=FakeNotifier())
     assert sess.status == "done" and "climate_on" not in fleet.calls
+
+
+async def test_session_sentry_on_then_off_if_you_stay():
+    s = Settings(_env_file=None, stop_grace_min=0, teslacam_path="")
+    fleet, n = FakeFleet(snap()), FakeNotifier()
+    sess = await run(Session(label="work", departure=datetime.now(), sentry=True), s, fleet=fleet, notifier=n)
+    assert sess.status == "done"
+    assert fleet.calls.index("sentry True") < fleet.calls.index("climate_on")
+    assert fleet.calls[-1] == "sentry False"  # restored: you didn't leave
+
+
+async def test_session_leaves_existing_sentry_alone():
+    s = Settings(_env_file=None, stop_grace_min=0, teslacam_path="", sentry_on_depart=True)
+    fleet, n = FakeFleet(snap(sentry_mode=True)), FakeNotifier()
+    await run(Session(label="work", departure=datetime.now()), s, fleet=fleet, notifier=n)
+    assert not any(c.startswith("sentry") for c in fleet.calls)
+
+
+async def test_session_sentry_only_still_turns_off():
+    # Warm car: no climate plan, but Sentry was switched on, so it must be switched off again.
+    s = Settings(_env_file=None, stop_grace_min=0, teslacam_path="")
+    fleet, n = FakeFleet(snap(inside_temp=21.0, outside_temp=20.0)), FakeNotifier()
+    await run(Session(label="gym", departure=datetime.now(), sentry=True), s, fleet=fleet, notifier=n)
+    assert "climate_on" not in fleet.calls
+    assert fleet.calls[-1] == "sentry False"
