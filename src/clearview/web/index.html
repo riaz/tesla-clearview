@@ -1,0 +1,1033 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0A0B0D">
+<script>try { const t = localStorage.getItem("clearview-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<title>clearview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0A0B0D; --panel: #131519; --panel2: #1A1D22; --line: #262A31;
+    --text: #F2F4F7; --muted: #8A919C; --dim: #5C636E;
+    --accent: #4C8DFF; --accent-hover: #5D99FF; --heat: #FF8A3D; --sentry: #FF4D5E; --ok: #3DD68C; --cool: #5BC8F5;
+    --hover: #20242A; --track: #2A2E35; --sel-text: #CFE0FF; --cool-text: #BFE9FF; --warn: #FFC56B;
+    --callout: rgba(26,29,34,.92); --glass: rgba(10,11,13,.82); --stage-hi: #171B22; --login-hi: #151922;
+    --toast-bg: #F2F4F7; --toast-fg: #0A0B0D; --shadow: none; --soft: rgba(255,255,255,.06);
+    --r: 20px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #F2F3F5; --panel: #FFFFFF; --panel2: #F4F5F7; --line: #E2E5EA;
+      --text: #111418; --muted: #5F6670; --dim: #8C939D;
+      --accent: #2F6FEB; --accent-hover: #1F5FDB; --heat: #E8681A; --sentry: #E0364A; --ok: #14995A; --cool: #1C93C9;
+      --hover: #EBEDF0; --track: #D9DDE3; --sel-text: #1F4FB0; --cool-text: #0F6E99; --warn: #A86500;
+      --callout: rgba(255,255,255,.94); --glass: rgba(255,255,255,.88); --stage-hi: #E9EEF6; --login-hi: #E3E9F3;
+      --soft: rgba(17,20,24,.05); --toast-bg: #111418; --toast-fg: #F2F4F7; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 4px 16px -8px rgba(16,24,40,.10);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #F2F3F5; --panel: #FFFFFF; --panel2: #F4F5F7; --line: #E2E5EA;
+    --text: #111418; --muted: #5F6670; --dim: #8C939D;
+    --accent: #2F6FEB; --accent-hover: #1F5FDB; --heat: #E8681A; --sentry: #E0364A; --ok: #14995A; --cool: #1C93C9;
+    --hover: #EBEDF0; --track: #D9DDE3; --sel-text: #1F4FB0; --cool-text: #0F6E99; --warn: #A86500;
+    --callout: rgba(255,255,255,.94); --glass: rgba(255,255,255,.88); --stage-hi: #E9EEF6; --login-hi: #E3E9F3;
+    --soft: rgba(17,20,24,.05); --toast-bg: #111418; --toast-fg: #F2F4F7; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 4px 16px -8px rgba(16,24,40,.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); }
+  body { color: var(--text); font: 14px/1.4 Inter, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  input { font: inherit; color: inherit; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+  .row { display: flex; align-items: center; }
+  .col { display: flex; flex-direction: column; }
+  .spacer { flex: 1; }
+
+  /* ---------- primitives ---------- */
+  .card { background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: var(--r); position: relative; overflow: hidden; min-width: 0; }
+  .pad { padding: 20px 24px; }
+  .h { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--muted); background: var(--soft); }
+  .pill.ok { color: var(--ok); background: rgba(61,214,140,.10); }
+  .pill.heat { color: var(--heat); background: rgba(255,138,61,.12); }
+  .pill.sentry { color: var(--sentry); background: rgba(255,77,94,.12); }
+  .pill.cool { color: var(--cool-text); background: rgba(91,200,245,.12); }
+  .pill.warn { color: var(--warn); background: rgba(255,197,107,.10); }
+  .dot { width: 7px; height: 7px; border-radius: 4px; background: currentColor; flex-shrink: 0; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); font-size: 14px; font-weight: 500; white-space: nowrap; transition: transform .12s ease-out, background .15s; }
+  .btn:hover { background: var(--hover); }
+  .btn:active { transform: scale(.96); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.primary:hover { background: var(--accent-hover); }
+  .btn.danger { color: var(--sentry); }
+  .btn.icon { width: 40px; padding: 0; }
+  .btn:disabled { opacity: .5; cursor: default; transform: none; }
+  .tg { width: 40px; height: 24px; border-radius: 12px; background: var(--track); position: relative; flex-shrink: 0; transition: background .2s; }
+  .tg::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 10px; background: #fff; transition: transform .2s ease-out; }
+  .tg.on::after { transform: translateX(16px); }
+  .tg.on { background: var(--accent); }
+  .tg.on.heat { background: var(--heat); } .tg.on.sentry { background: var(--sentry); }
+  .chip { flex: 1; height: 34px; border-radius: 17px; background: var(--panel2); border: 1px solid var(--line); font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .chip.sel { background: rgba(76,141,255,.14); border-color: var(--accent); color: var(--sel-text); }
+  .ic { width: 20px; height: 20px; flex-shrink: 0; }
+  .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(76,141,255,.3); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- top bar ---------- */
+  .topbar { display: flex; align-items: center; gap: 20px; height: 72px; padding: 0 32px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+  .logo { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--accent), #7AB0FF); display: flex; align-items: center; justify-content: center; }
+  .vsep { width: 1px; height: 24px; background: var(--line); }
+  .carname { font-size: 15px; font-weight: 600; } .carsub { font-size: 13px; color: var(--muted); }
+  .avatar { width: 36px; height: 36px; border-radius: 18px; background: var(--panel2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+  .setupbtn { position: relative; }
+  .setupbtn .badge { position: absolute; top: 6px; right: 8px; width: 8px; height: 8px; border-radius: 4px; background: var(--sentry); }
+
+  /* ---------- layout ---------- */
+  main.grid { display: grid; grid-template-columns: minmax(0, 880px) minmax(0, 476px); gap: 20px; padding: 24px 32px 40px; justify-content: center; align-items: start; }
+  .stack { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
+  /* ---------- vehicle stage ---------- */
+  .stage { background: radial-gradient(120% 90% at 50% 20%, var(--stage-hi) 0%, var(--panel) 60%); }
+  .stage-head { position: relative; z-index: 3; display: flex; justify-content: space-between; align-items: flex-start; padding: 24px 28px 0; gap: 16px; }
+  .stage-title { font-size: 22px; font-weight: 600; margin-top: 6px; letter-spacing: -.01em; }
+  .stage-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .seg { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); }
+  .seg button { height: 30px; padding: 0 14px; border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--muted); border: 1px solid transparent; }
+  .seg button.sel { background: rgba(76,141,255,.14); border-color: var(--accent); color: var(--sel-text); }
+  .board-wrap { position: relative; width: 100%; margin-top: -88px; }
+  .board { position: absolute; left: 0; top: 0; width: 880px; height: 440px; transform-origin: 0 0; }
+  .board .carpos { position: absolute; left: 110px; top: 84px; width: 660px; height: 347px; cursor: default; }
+  .board .leaders { position: absolute; inset: 0; pointer-events: none; }
+  .callout { position: absolute; display: flex; align-items: center; gap: 12px; width: 196px; height: 60px; padding: 0 14px; border-radius: 16px; background: var(--callout); border: 1px solid var(--line); box-shadow: var(--shadow); text-align: left; transition: transform .12s ease-out, border-color .25s, box-shadow .25s; }
+  .callout:hover { border-color: var(--dim); }
+  .callout:active { transform: scale(.96); }
+  .callout .ci { width: 34px; height: 34px; border-radius: 11px; background: var(--soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--muted); }
+  .callout .cl { font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .callout .cs { font-size: 12px; font-weight: 500; margin-top: 2px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+  .callout.on { border-color: var(--c); box-shadow: 0 0 0 4px rgba(255,255,255,.02), 0 0 28px -6px var(--c); }
+  .callout.on .ci { color: var(--c); background: var(--soft); }
+  .callout.on .cs { color: var(--c); }
+  .callout.pending { border-color: var(--accent); box-shadow: 0 0 28px -6px var(--accent); }
+  .callout.pending .ci { color: var(--accent); }
+  .callout.pending .cs { color: var(--accent); }
+  .callout.err { border-color: var(--sentry); }
+  .callout.err .cs { color: var(--sentry); }
+  .stage-foot { position: relative; z-index: 3; display: flex; gap: 12px; padding: 0 24px 24px; }
+  .ctl { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; border-radius: 16px; background: var(--panel2); border: 1px solid var(--line); min-width: 0; }
+  .ctl.flex { flex: 1; cursor: pointer; }
+  .ctl .t { font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .ctl .s { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ctl.on-heat { border-color: rgba(255,138,61,.5); } .ctl.on-sentry { border-color: rgba(255,77,94,.5); }
+  .temp .v { font-size: 26px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; text-align: center; }
+  .temp .s { text-align: center; }
+  .tiles { display: none; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 16px 16px; position: relative; z-index: 3; }
+  .tile { height: 92px; border-radius: 18px; padding: 12px; background: var(--panel2); border: 1px solid var(--line); display: flex; flex-direction: column; justify-content: space-between; text-align: left; transition: transform .12s, border-color .25s, box-shadow .25s; }
+  .tile:active { transform: scale(.96); }
+  .tile .tn { font-size: 14px; font-weight: 600; } .tile .ts { font-size: 12px; color: var(--dim); }
+  .tile .ti { color: var(--muted); }
+  .tile.on { border-color: var(--c); box-shadow: 0 0 22px -8px var(--c); }
+  .tile.on .ti, .tile.on .ts { color: var(--c); }
+  .tile.pending { border-color: var(--accent); } .tile.pending .ts { color: var(--accent); }
+
+  /* car animations */
+  .car .heat path { animation: heatDrift 2.4s ease-in-out infinite; }
+  @keyframes heatDrift { 0% { transform: translateY(4px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-8px); opacity: 0; } }
+  .car .rings circle { transform-box: fill-box; transform-origin: center; animation: ring 1.6s ease-out infinite; }
+  .car .rings circle:nth-child(2) { animation-delay: .5s; }
+  @keyframes ring { 0% { transform: scale(.4); opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
+  .car .air path { animation: air 1.8s linear infinite; }
+  @keyframes air { to { stroke-dashoffset: -22; } }
+  .car .glow { animation: glow 2s ease-in-out infinite alternate; }
+  @keyframes glow { from { opacity: .45; } to { opacity: 1; } }
+  .car .sweep { stroke-dasharray: 120 600; animation: sweep 1.2s ease-in-out infinite; }
+  @keyframes sweep { from { stroke-dashoffset: 120; } to { stroke-dashoffset: -480; } }
+  .car .fade { animation: fadein .6s ease-out both; }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ---------- map ---------- */
+  .mapcard { height: 248px; }
+  #map { position: absolute; inset: 0; background: var(--panel2); }
+  .map-ui { position: absolute; z-index: 2; }
+  .glass-pill { height: 30px; background: var(--glass); border: 1px solid var(--line); color: var(--text); backdrop-filter: blur(6px); }
+  .mapbtn { width: 34px; height: 34px; border-radius: 10px; background: var(--glass); color: var(--text); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
+  .map-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); font-size: 13px; z-index: 1; }
+  .maplibregl-ctrl-attrib { background: var(--glass) !important; color: var(--dim) !important; font-size: 10px; }
+  .maplibregl-ctrl-attrib a { color: var(--muted) !important; }
+  .mk-car { width: 52px; height: 52px; border-radius: 26px; background: rgba(76,141,255,.10); display: flex; align-items: center; justify-content: center; }
+  .mk-car::before { content: ""; position: absolute; width: 30px; height: 30px; border-radius: 15px; background: rgba(76,141,255,.18); animation: mkpulse 2s ease-out infinite; }
+  .mk-car i { width: 16px; height: 16px; border-radius: 8px; background: var(--accent); border: 3px solid var(--panel); position: relative; }
+  @keyframes mkpulse { 0% { transform: scale(.6); opacity: 1; } 100% { transform: scale(1.8); opacity: 0; } }
+  .mk-home { width: 20px; height: 18px; border-radius: 4px; background: #2A3039; border: 1px solid #5C636E; }
+  .mk-you { width: 12px; height: 12px; border-radius: 6px; background: #fff; border: 3px solid var(--accent); }
+
+  /* ---------- conditions ---------- */
+  .scale { position: relative; height: 56px; margin-top: 40px; }
+  .scale .track { position: absolute; left: 0; right: 0; top: 24px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--cool), var(--track) 45%, var(--track)); }
+  .scale .band { position: absolute; top: 21px; height: 10px; border-radius: 5px; background: rgba(91,200,245,.28); }
+  .scale .mk { position: absolute; width: 2px; border-radius: 1px; }
+  .scale .lb { position: absolute; width: 76px; text-align: center; font-size: 11px; line-height: 1.3; white-space: nowrap; }
+  .stat .sv { font-size: 24px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .stat .sl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ---------- depart ---------- */
+  .field { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); margin-top: 14px; }
+  .field:focus-within { border-color: var(--accent); }
+  .field input { flex: 1; min-width: 0; background: none; border: 0; outline: none; font-size: 15px; }
+  .field input::placeholder { color: var(--dim); }
+  .tgl { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+
+  /* ---------- session timeline ---------- */
+  .tl { display: flex; gap: 10px; margin-top: 18px; align-items: flex-start; }
+  .tl-step { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .tl-bar { height: 4px; border-radius: 2px; background: var(--track); }
+  .tl-time { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .tl-t { font-size: 13px; font-weight: 600; }
+  .tl-s { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .tl-step.future .tl-t { color: var(--muted); }
+  .tl-step.now .tl-bar { background: var(--heat); }
+  .tl-step.done .tl-bar { background: var(--ok); }
+  .events { margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); font: 12px/1.6 ui-monospace, Menlo, monospace; color: var(--muted); white-space: pre-wrap; max-height: 220px; overflow: auto; }
+  .empty { color: var(--muted); font-size: 13px; margin-top: 12px; }
+
+  /* ---------- alerts ---------- */
+  .alert { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
+  .alert:first-child { border-top: 0; padding-top: 0; }
+  .alert .ai { width: 34px; height: 34px; border-radius: 11px; background: var(--soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .alert .code { font: 11px ui-monospace, Menlo, monospace; color: var(--dim); margin-top: 2px; }
+
+  /* ---------- setup drawer ---------- */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 40; }
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(480px, 100%); background: var(--panel); border-left: 1px solid var(--line); z-index: 41; overflow: auto; padding: 24px; }
+  .check { display: grid; grid-template-columns: 24px 1fr auto; gap: 12px; align-items: start; padding: 14px 0; border-top: 1px solid var(--line); }
+  .check:first-child { border-top: 0; }
+  .check .mark { font-weight: 700; text-align: center; }
+  .check .mark.ok { color: var(--ok); } .check .mark.bad { color: var(--sentry); } .check .mark.unk { color: var(--dim); }
+  .check .t { font-weight: 600; } .check .d { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; margin-top: 2px; }
+
+  /* ---------- login, toast ---------- */
+  #login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(80% 60% at 50% 30%, var(--login-hi), var(--bg)); }
+  #login .card { width: min(400px, 100%); padding: 28px; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); background: var(--toast-bg); color: var(--toast-fg); padding: 12px 16px; border-radius: 12px; max-width: min(560px, calc(100% - 32px)); opacity: 0; transition: opacity .2s, transform .2s; z-index: 60; display: flex; gap: 12px; align-items: center; font-weight: 500; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  #toast button { color: var(--accent); font-weight: 700; }
+  .demo-flag { color: var(--warn); }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 1400px) { main.grid { grid-template-columns: minmax(0, 1fr) minmax(0, 420px); } }
+  @media (max-width: 1100px) {
+    main.grid { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 16px; }
+    .stack { display: contents; }
+    #stage { order: 1; } #sessionCard { order: 2; } .mapcard { order: 3; } #condCard { order: 4; } #alertsCard { order: 5; } #departCard { order: 6; }
+    .topbar .opt { display: none; }
+  }
+  @media (max-width: 720px) {
+    .topbar { padding: 0 16px; gap: 12px; height: 64px; }
+    .topbar .opt2 { display: none; }
+    .topbar .btn { height: 36px; padding: 0 12px; }
+    .topbar .btn.icon, .topbar .avatar { width: 36px; padding: 0; }
+    .board .callout, .board .leaders { display: none; }
+    .tiles { display: grid; }
+    .stage-foot .ctl.flex { display: none; }
+    .stage-foot .temp { flex: 1; justify-content: space-between; }
+    .stage-head { padding: 18px 18px 0; flex-direction: column; align-items: stretch; gap: 12px; }
+    .seg button { flex: 1; }
+    .stage-title { font-size: 18px; }
+    .seg button { padding: 0 10px; }
+    .pad { padding: 18px; }
+    .tl { flex-wrap: wrap; row-gap: 16px; }
+    .tl-step { flex: 0 0 calc(33.333% - 7px); }
+  }
+  @media (max-width: 440px) { .topbar .brand-name { display: none; } .topbar { gap: 8px; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div id="login" class="hidden">
+  <div class="card">
+    <div class="brand"><div class="logo"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z"/></svg></div>clearview</div>
+    <p class="muted" style="margin:14px 0 18px">Sign in with your <code>CLEARVIEW_API_TOKEN</code>.</p>
+    <form id="loginForm" class="col" style="gap:12px">
+      <div class="field" style="margin:0"><input type="password" id="tokenInput" autocomplete="current-password" placeholder="API token" required></div>
+      <button class="btn primary" style="height:48px">Sign in</button>
+    </form>
+    <p id="loginErr" style="color:var(--sentry);margin-top:12px;font-size:13px"></p>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="brand"><div class="logo"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z"/></svg></div><span class="brand-name">clearview</span></div>
+    <div class="vsep opt2"></div>
+    <div class="row opt2" style="gap:8px"><span class="carname" id="carName">Your car</span><span class="carsub opt" id="carSub"></span></div>
+    <div class="row opt" style="gap:8px" id="topPills"></div>
+    <div class="spacer"></div>
+    <span class="muted opt" style="font-size:13px" id="updated"></span>
+    <button class="btn" id="refreshBtn">Refresh</button>
+    <button class="btn icon" id="themeBtn" aria-label="Theme" title="Theme"></button>
+    <button class="btn setupbtn" id="setupBtn">Setup<span class="badge hidden" id="setupBadge"></span></button>
+    <button class="avatar" id="signOut" title="Sign out" aria-label="Sign out"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10"/></svg></button>
+  </header>
+
+  <main class="grid">
+    <div class="stack">
+      <section class="card stage" id="stage">
+        <div class="stage-head">
+          <div class="col" style="min-width:0"><div class="h" id="stageEyebrow">Vehicle</div><div class="stage-title" id="stageTitle">Your car</div><div class="stage-sub" id="stageSub">Tap Refresh to read the car.</div></div>
+          <div class="seg" id="tabs"><button data-tab="front" class="sel">Front</button><button data-tab="rear">Rear</button><button data-tab="cabin">Cabin</button></div>
+        </div>
+        <div class="board-wrap" id="boardWrap"><div class="board" id="board"></div></div>
+        <div class="tiles" id="tiles"></div>
+        <div class="stage-foot">
+          <div class="ctl temp" style="gap:14px">
+            <button class="btn icon" id="tempDown" aria-label="Cooler"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+            <div class="col" style="width:112px"><div class="v" id="tempVal">—</div><div class="s" id="tempSub">Cabin —</div></div>
+            <button class="btn icon" id="tempUp" aria-label="Warmer"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          </div>
+          <div class="ctl flex" id="ctlDefrost" role="button" tabindex="0"></div>
+          <div class="ctl flex" id="ctlSentry" role="button" tabindex="0"></div>
+        </div>
+      </section>
+
+      <section class="card pad" id="sessionCard"></section>
+      <section class="card pad" id="alertsCard"></section>
+    </div>
+
+    <div class="stack">
+      <section class="card mapcard">
+        <div id="map"></div>
+        <div class="map-empty hidden" id="mapEmpty">No location yet.<br>Read the car once, or set HOME_LAT/HOME_LON.</div>
+        <div class="map-ui" style="left:16px;top:16px"><span class="pill glass-pill" id="mapPill"></span></div>
+        <div class="map-ui col" style="right:16px;top:16px;gap:6px">
+          <button class="mapbtn" id="zoomIn" aria-label="Zoom in"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <button class="mapbtn" id="zoomOut" aria-label="Zoom out"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+          <button class="mapbtn" id="recenter" aria-label="Recenter"><svg class="ic" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m4 11 16-7-7 16-2-7z"/></svg></button>
+        </div>
+        <div class="map-ui" style="left:16px;bottom:14px"><span class="pill glass-pill" style="height:26px;color:var(--muted)" id="mapFoot"></span></div>
+      </section>
+
+      <section class="card pad" id="condCard"><div class="h">Glass conditions</div><p class="empty">Loading…</p></section>
+
+      <section class="card pad" id="departCard">
+        <div class="h">Leaving soon</div>
+        <form id="departForm">
+          <label class="field">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+            <input id="departText" placeholder="Leaving for work in 20 min" autocomplete="off">
+            <span class="muted" style="font-size:12px" id="departAt"></span>
+          </label>
+          <div class="row" style="gap:8px;margin-top:12px" id="chips">
+            <button type="button" class="chip" data-min="10">10 min</button><button type="button" class="chip" data-min="15">15 min</button>
+            <button type="button" class="chip" data-min="20">20 min</button><button type="button" class="chip" data-min="30">30 min</button>
+          </div>
+          <div class="row" style="gap:18px;margin-top:16px;flex-wrap:wrap">
+            <span class="tgl" id="sentryDepart" role="switch" tabindex="0"><span class="tg sentry"></span>Sentry while preparing</span>
+            <span class="tgl muted" id="dryRun" role="switch" tabindex="0"><span class="tg"></span>Dry run</span>
+          </div>
+          <button class="btn primary" id="departBtn" style="width:100%;height:48px;margin-top:16px;font-size:15px">Get the car ready</button>
+        </form>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div id="setup" class="hidden">
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer">
+    <div class="row" style="justify-content:space-between"><div style="font-size:20px;font-weight:700">Setup</div>
+      <div class="row" style="gap:8px"><button class="btn" id="recheck">Re-check</button><button class="btn icon" id="closeSetup" aria-label="Close">✕</button></div></div>
+    <p class="muted" style="margin:6px 0 16px;font-size:13px">One-time steps to connect clearview to your car.</p>
+    <div id="checklist"></div>
+  </aside>
+</div>
+
+<div id="toast"><span id="toastMsg"></span><button id="toastAct" class="hidden"></button></div>
+
+<script>
+"use strict";
+// ======================================================================================
+// helpers
+// ======================================================================================
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const C = { heat: "#FF8A3D", sentry: "#FF4D5E", cool: "#5BC8F5", accent: "#4C8DFF", ok: "#3DD68C", muted: "#8A919C", dim: "#5C636E" };
+const fmtTime = (iso) => { if (!iso) return "—"; const d = new Date(iso); return isNaN(d) ? "—" : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
+const fmtT = (v, unit = "°") => v == null ? "—" : `${Math.round(v * 10) / 10}${unit}`;
+
+const ICON = {
+  defrost: '<path d="M3 18h18M5 18l2.2-9h9.6l2.2 9"/><path d="M9.5 15.5c-.8-.9.8-1.6 0-2.6M12 15.5c-.8-.9.8-1.6 0-2.6M14.5 15.5c-.8-.9.8-1.6 0-2.6"/>',
+  rear: '<rect x="3.5" y="6.5" width="17" height="11" rx="2.5"/><path d="M7.5 10h9M7.5 12.5h9M7.5 15h9"/>',
+  sentry: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  fan: '<circle cx="12" cy="12" r="1.8"/><path d="M12 10.2C11.6 6 13 3.5 15.5 3.8c2 .3 1.7 3-.9 4.6M13.8 12c4.2-.4 6.7 1 6.4 3.5-.3 2-3 1.7-4.6-.9M12 13.8c.4 4.2-1 6.7-3.5 6.4-2-.3-1.7-3 .9-4.6M10.2 12C6 12.4 3.5 11 3.8 8.5c.3-2 3-1.7 4.6.9"/>',
+  seat: '<path d="M8 3.5h3.2a2 2 0 0 1 2 2.3L12.3 13H8.5z"/><path d="M8.5 13h8.2a2 2 0 0 1 2 2v1.5H8.5z"/><path d="M9.5 16.5v3.5M17 16.5v3.5"/>',
+  wheel: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2"/><path d="M3.8 10.5h6.4M13.8 10.5h6.4M12 14v6.5"/>',
+  pin: '<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+  bolt: '<path d="M13 3 5.5 13.5H12L11 21l7.5-10.5H12z"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
+  unlock: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 7.7-1.5"/>',
+  therm: '<path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 10v7"/>',
+  snow: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/>',
+  drop: '<path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z"/>',
+  camera: '<rect x="3" y="7" width="13" height="10" rx="2.5"/><path d="m16 10.5 5-3v9l-5-3"/>',
+  alert: '<path d="M12 3.5 21.5 20h-19z"/><path d="M12 10v4.5M12 17.2v.3"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  wifi: '<path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.3a9.5 9.5 0 0 1 13 0M8.6 15.6a5 5 0 0 1 6.8 0"/><circle cx="12" cy="19" r="1"/>',
+};
+const icon = (n, size = 20, color = "currentColor", sw = 1.7) =>
+  `<svg class="ic" style="width:${size}px;height:${size}px" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${ICON[n]}</svg>`;
+
+let toastTimer;
+function toast(msg, action) {
+  $("#toastMsg").textContent = msg;
+  const b = $("#toastAct");
+  if (action) { b.textContent = action.label; b.onclick = () => { $("#toast").classList.remove("show"); action.run(); }; b.classList.remove("hidden"); }
+  else b.classList.add("hidden");
+  $("#toast").classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => $("#toast").classList.remove("show"), action ? 8000 : 4500);
+}
+
+class ApiError extends Error { constructor(msg, status) { super(msg); this.status = status; } }
+async function api(path, opts = {}) {
+  const r = await fetch(path, {
+    method: opts.method || (opts.body ? "POST" : "GET"),
+    headers: opts.body ? { "Content-Type": "application/json" } : {},
+    body: opts.body ? JSON.stringify(opts.body) : undefined, credentials: "same-origin",
+  });
+  if (r.status === 401) { showLogin(); throw new ApiError("signed out", 401); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ApiError(typeof data.detail === "string" ? data.detail : (data.detail ? JSON.stringify(data.detail) : r.statusText), r.status);
+  return data;
+}
+
+// ======================================================================================
+// state
+// ======================================================================================
+const S = {
+  overview: null, snap: null, vehicle: null, cond: null, alerts: null, check: null,
+  tab: "front", pending: {}, errors: {}, here: null, targetTemp: null, showEvents: false,
+  sentryDepart: false, dryRun: false,
+};
+
+// ======================================================================================
+// the car (original stylized front/rear view of an electric crossover; no brand marks)
+// ======================================================================================
+let uid = 0;
+function carSVG(view, st) {
+  const u = ++uid;
+  const rear = view === "rear";
+  const front = !rear;
+  const defrostGlass = front ? st.defrost : st.rear;
+  const [g0, g1] = defrostGlass ? ["#3B2416", "#140C08"] : ["#1D2A38", "#0A0E13"];
+  const P = [];
+  P.push(`<svg class="car" viewBox="0 0 760 400" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg"><defs>
+    <linearGradient id="b${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3A3F47"/><stop offset=".45" stop-color="#23272D"/><stop offset="1" stop-color="#121417"/></linearGradient>
+    <linearGradient id="g${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${g0}"/><stop offset="1" stop-color="${g1}"/></linearGradient>
+    <linearGradient id="r${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A3038"/><stop offset="1" stop-color="#14171B"/></linearGradient>
+    <radialGradient id="f${u}" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="${st.sentry ? C.sentry : C.accent}" stop-opacity=".2"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>
+    <ellipse cx="380" cy="352" rx="370" ry="46" fill="url(#f${u})"/>
+    <ellipse cx="380" cy="350" rx="300" ry="15" fill="#000" opacity=".7"/>
+    <rect x="110" y="282" width="62" height="70" rx="13" fill="#08090B"/><rect x="588" y="282" width="62" height="70" rx="13" fill="#08090B"/>
+    <path d="M100 318 L96 252 Q98 222 122 210 L212 196 Q380 184 548 196 L638 210 Q662 222 664 252 L660 318 Q658 336 638 338 L122 338 Q102 336 100 318 Z" fill="url(#b${u})" stroke="#454B55" stroke-width="1.2"/>
+    <path d="M194 202 L246 114 Q257 98 280 96 L480 96 Q503 98 514 114 L566 202 Z" fill="url(#r${u})" stroke="#454B55" stroke-width="1.2"/>
+    <path d="M${rear ? "236 192 L274 128 Q280 118 294 117 L466 117 Q480 118 486 128 L524 192" : "220 194 L264 121 Q271 110 286 109 L474 109 Q489 110 496 121 L540 194"} Z" fill="url(#g${u})" style="transition:fill .6s"/>
+    <path d="M268 120 L300 112 L330 112" stroke="#fff" stroke-opacity=".10" stroke-width="5" stroke-linecap="round"/>`);
+  if (front) {
+    P.push(`<rect x="300" y="146" width="48" height="36" rx="13" fill="${st.pseat ? "#5A3220" : "#232931"}"/>
+      <rect x="412" y="146" width="48" height="36" rx="13" fill="${st.seat ? "#5A3220" : "#232931"}"/>
+      <path d="M408 194 Q440 162 472 194" stroke="${st.wheel ? C.heat : "#2F353E"}" stroke-width="6" stroke-linecap="round"/>
+      <path d="M230 188 Q380 178 530 188" stroke="#2A3038" stroke-width="4" stroke-linecap="round"/>`);
+    if (st.seat) P.push(`<rect class="glow" x="402" y="138" width="68" height="52" rx="20" fill="${C.heat}" fill-opacity=".2"/>`);
+    if (st.pseat) P.push(`<rect class="glow" x="290" y="138" width="68" height="52" rx="20" fill="${C.heat}" fill-opacity=".2"/>`);
+    if (st.wheel) P.push(`<path class="glow" d="M408 194 Q440 162 472 194" stroke="${C.heat}" stroke-opacity=".3" stroke-width="16" stroke-linecap="round"/>`);
+    if (st.defrost) {
+      P.push('<g class="heat">');
+      [128, 145, 162, 178].forEach((y, i) => {
+        const x0 = 262 - i * 9, x1 = 498 + i * 9; let d = `M${x0} ${y}`;
+        for (let k = 0; k < 8; k++) { const xm = x0 + (k + .5) * (x1 - x0) / 8, xe = x0 + (k + 1) * (x1 - x0) / 8; d += ` Q ${xm.toFixed(0)} ${k % 2 ? y + 5 : y - 5} ${xe.toFixed(0)} ${y}`; }
+        P.push(`<path d="${d}" stroke="${C.heat}" stroke-opacity="${(.8 - i * .1).toFixed(2)}" stroke-width="2" stroke-linecap="round" style="animation-delay:${i * .15}s"/>`);
+      });
+      P.push("</g>");
+    }
+    if (st.climate) {
+      P.push('<g class="air">');
+      [[-70, .55], [0, .75], [70, .55]].forEach(([dx, op]) => P.push(`<path d="M${380 + dx} 184 C ${372 + dx} 166, ${392 + dx} 150, ${382 + dx} 130" stroke="${C.cool}" stroke-opacity="${op}" stroke-width="2.2" stroke-dasharray="5 6" stroke-linecap="round"/>`));
+      P.push("</g>");
+    }
+  } else {
+    P.push(`<rect x="300" y="150" width="40" height="28" rx="11" fill="#20252C"/><rect x="360" y="150" width="40" height="28" rx="11" fill="#20252C"/><rect x="420" y="150" width="40" height="28" rx="11" fill="#20252C"/>`);
+    if (st.rear) {
+      P.push('<g class="heat">');
+      for (let i = 0; i < 6; i++) { const y = 134 + i * 10; P.push(`<path d="M${284 - i * 6} ${y} L${476 + i * 6} ${y}" stroke="${C.heat}" stroke-opacity=".7" stroke-width="1.6" stroke-linecap="round" style="animation-delay:${i * .12}s"/>`); }
+      P.push("</g>");
+    }
+  }
+  P.push(`<path d="M198 178 L166 168 Q156 170 158 182 L203 189 Z" fill="#1C1F24" stroke="#454B55"/>
+    <path d="M562 178 L594 168 Q604 170 602 182 L557 189 Z" fill="#1C1F24" stroke="#454B55"/>`);
+  if (front) P.push(`<rect x="368" y="104" width="24" height="9" rx="4" fill="#05070A" stroke="${st.sentry ? C.sentry : "#4A515C"}" stroke-width="1.2"/>`);
+  const bar = rear ? "#FF3B4A" : "#EEF4FF", halo = rear ? "#FF3B4A" : "#DDE9FF", lamp = rear ? "#FF5361" : "#DCE7FF";
+  P.push(`<path d="M140 214 Q380 194 620 214" stroke="#fff" stroke-opacity=".08" stroke-width="2"/>
+    <path d="M140 236 L620 236" stroke="${halo}" stroke-opacity="${rear ? .25 : .14}" stroke-width="12" stroke-linecap="round"/>
+    <path d="M140 236 L620 236" stroke="${bar}" stroke-width="3" stroke-linecap="round"/>
+    <rect x="118" y="243" width="92" height="7" rx="3.5" fill="${lamp}" opacity=".92"/><rect x="550" y="243" width="92" height="7" rx="3.5" fill="${lamp}" opacity=".92"/>`);
+  if (rear) P.push(`<rect x="320" y="258" width="120" height="30" rx="5" fill="#0B0D10" stroke="#30353D"/><rect x="372" y="250" width="16" height="6" rx="3" fill="#05070A" stroke="${st.sentry ? C.sentry : "#4A515C"}"/>
+    <rect x="250" y="300" width="260" height="14" rx="7" fill="#0B0D10" stroke="#30353D"/>`);
+  else P.push(`<rect x="250" y="284" width="260" height="28" rx="14" fill="#0B0D10" stroke="#30353D"/><circle cx="300" cy="298" r="2.5" fill="#30353D"/><circle cx="460" cy="298" r="2.5" fill="#30353D"/>`);
+  P.push(`<path d="M150 326 L610 326" stroke="#000" stroke-opacity=".35" stroke-width="2"/>
+    <circle cx="150" cy="206" r="3" fill="${st.sentry ? C.sentry : "#3A4049"}"/><circle cx="610" cy="206" r="3" fill="${st.sentry ? C.sentry : "#3A4049"}"/>`);
+  if (st.sentry) {
+    const [cx, cy] = rear ? [380, 253] : [380, 108.5];
+    P.push(`<circle cx="${cx}" cy="${cy}" r="4" fill="${C.sentry}"/>
+      <g class="rings"><circle cx="${cx}" cy="${cy}" r="16" stroke="${C.sentry}" stroke-width="1.5"/><circle cx="${cx}" cy="${cy}" r="16" stroke="${C.sentry}" stroke-width="1.5"/></g>
+      <g class="rings"><circle cx="150" cy="206" r="8" stroke="${C.sentry}" stroke-width="1.2"/><circle cx="610" cy="206" r="8" stroke="${C.sentry}" stroke-width="1.2"/></g>`);
+  }
+  if (Object.keys(S.pending).length) P.push(`<path class="sweep" d="M140 236 L620 236" stroke="${C.accent}" stroke-width="3.5" stroke-linecap="round"/>`);
+  P.push("</svg>");
+  return P.join("");
+}
+
+// ======================================================================================
+// controls: what each callout/tile does and how its state is read from the car
+// ======================================================================================
+const CONTROLS = {
+  defrost: { label: "Front defrost", icon: "defrost", color: C.heat, on: (s) => s.front_defrost,
+    state: (s, on) => on ? `On · cabin ${fmtT(s.inside_temp)}` : "Off", cmd: (on) => on ? "defrost_off" : "defrost_on" },
+  rear: { label: "Rear defrost", icon: "rear", color: C.heat, on: (s) => s.rear_defrost,
+    state: (s, on) => on ? "On · via max defrost" : "Off · via max defrost", cmd: (on) => on ? "defrost_off" : "defrost_on" },
+  climate: { label: "Climate", icon: "fan", color: C.cool, on: (s) => s.is_climate_on,
+    state: (s, on) => on ? `On · ${fmtT(s.driver_temp_setting)} · auto` : "Off", cmd: (on) => on ? "climate_off" : "climate_on" },
+  sentry: { label: "Sentry Mode", icon: "sentry", color: C.sentry, on: (s) => s.sentry_mode,
+    state: (s, on) => on ? "Watching" : "Off", cmd: (on) => on ? "sentry_off" : "sentry_on" },
+  seat: { label: "Driver seat", icon: "seat", color: C.heat, on: (s) => (s.seat_heater_left || 0) > 0,
+    state: (s, on) => on ? `Heat ${s.seat_heater_left}` : "Off", cmd: (on) => on ? "seat_heat_off" : "seat_heat_high" },
+  pseat: { label: "Passenger seat", icon: "seat", color: C.heat, on: (s) => (s.seat_heater_right || 0) > 0,
+    state: (s, on) => on ? `Heat ${s.seat_heater_right}` : "Off", cmd: (on) => on ? "passenger_seat_heat_off" : "passenger_seat_heat_high" },
+  wheel: { label: "Steering wheel", icon: "wheel", color: C.heat, on: (s) => !!s.steering_wheel_heater,
+    state: (s, on) => on ? "Heating" : "Off", cmd: (on) => on ? "wheel_heat_off" : "wheel_heat_on" },
+};
+// Board layout per tab: callouts at fixed board positions, leader lines to points on the car (viewBox coords).
+const LAYOUT = {
+  front: { left: [["defrost", 132, [300, 150]], ["climate", 252, [330, 182]]],
+           right: [["sentry", 108, [392, 108]], ["seat", 216, [460, 160]], ["wheel", 324, [470, 190]]] },
+  rear: { left: [["rear", 150, [330, 150]], ["climate", 270, [300, 170]]],
+          right: [["sentry", 150, [388, 253]]] },
+  cabin: { left: [["pseat", 132, [324, 160]], ["climate", 252, [330, 184]]],
+           right: [["seat", 132, [436, 160]], ["wheel", 252, [452, 186]]] },
+};
+const TILES = ["defrost", "sentry", "climate", "seat", "wheel", "rear"];
+const TILE_LABEL = { defrost: "Defrost", sentry: "Sentry", climate: "Climate", seat: "Seat", wheel: "Wheel", rear: "Rear" };
+const shortState = (key, st) => st.cls === "pending" ? "Waking…" : st.cls === "err" ? st.text
+  : key === "seat" || key === "pseat" ? st.text : key === "climate" && st.on ? fmtT(S.snap?.driver_temp_setting) : st.on ? "On" : st.text.startsWith("Off") ? "Off" : st.text;
+
+function ctlState(key) {
+  const c = CONTROLS[key], s = S.snap;
+  if (S.pending[key]) return { on: false, cls: "pending", text: "Waking car…" };
+  if (S.errors[key]) return { on: false, cls: "err", text: S.errors[key] };
+  if (!s) return { on: false, cls: "", text: "Unknown" };
+  const on = !!c.on(s);
+  return { on, cls: on ? "on" : "", text: c.state(s, on) };
+}
+
+function carState() {
+  const s = S.snap || {};
+  return { defrost: !!s.front_defrost, rear: !!s.rear_defrost, climate: !!s.is_climate_on, sentry: !!s.sentry_mode,
+           seat: (s.seat_heater_left || 0) > 0, pseat: (s.seat_heater_right || 0) > 0, wheel: !!s.steering_wheel_heater };
+}
+
+function renderStage() {
+  const board = $("#board"), L = LAYOUT[S.tab];
+  const cx = 110, cy = 84, k = 660 / 760, W = 880;
+  const tp = ([x, y]) => [cx + x * k, cy + y * k];
+  let lines = "", callouts = "";
+  const add = (side, [key, y, target]) => {
+    const st = ctlState(key), c = CONTROLS[key];
+    const col = st.cls === "pending" ? C.accent : st.cls === "err" ? C.sentry : st.on ? c.color : C.dim;
+    const [tx, ty] = tp(target);
+    const x0 = side === "left" ? 32 + 196 : W - 32 - 196, y0 = y + 30, xe = side === "left" ? x0 + 34 : x0 - 34;
+    lines += `<path d="M${x0} ${y0} L${xe} ${y0} L${tx.toFixed(0)} ${ty.toFixed(0)}" stroke="${col}" stroke-opacity="${st.on || st.cls ? .6 : .45}" stroke-width="1.2" fill="none"/><circle cx="${tx.toFixed(0)}" cy="${ty.toFixed(0)}" r="4" fill="${col}"/>`;
+    const pos = side === "left" ? `left:32px` : `right:32px`;
+    const ic = st.cls === "pending" ? '<span class="spin"></span>' : icon(c.icon, 20);
+    callouts += `<button class="callout ${st.cls}" style="${pos};top:${y}px;--c:${c.color}" data-ctl="${key}" aria-pressed="${st.on}">
+      <span class="ci">${ic}</span><span class="col"><span class="cl">${esc(c.label)}</span><span class="cs">${esc(st.text)}</span></span></button>`;
+  };
+  L.left.forEach((e) => add("left", e)); L.right.forEach((e) => add("right", e));
+  board.innerHTML = `<div class="carpos">${carSVG(S.tab, carState())}</div>
+    <svg class="leaders" width="${W}" height="440" viewBox="0 0 ${W} 440">${lines}</svg>${callouts}`;
+  $$("#board [data-ctl]").forEach((b) => b.addEventListener("click", () => toggleCtl(b.dataset.ctl)));
+  fitBoard();
+
+  $("#tiles").innerHTML = TILES.map((key) => {
+    const st = ctlState(key), c = CONTROLS[key];
+    const ic = st.cls === "pending" ? '<span class="spin"></span>' : icon(c.icon, 22);
+    return `<button class="tile ${st.cls}" style="--c:${c.color}" data-ctl="${key}"><span class="row" style="justify-content:space-between"><span class="ti">${ic}</span>${st.on ? '<span class="dot" style="color:' + c.color + '"></span>' : ""}</span>
+      <span><span class="tn" style="display:block">${esc(TILE_LABEL[key])}</span><span class="ts">${esc(shortState(key, st))}</span></span></button>`;
+  }).join("");
+  $$("#tiles [data-ctl]").forEach((b) => b.addEventListener("click", () => toggleCtl(b.dataset.ctl)));
+
+  // footer: temperature + big toggles
+  const s = S.snap;
+  const setT = S.targetTemp ?? s?.driver_temp_setting ?? S.overview?.config?.target_temp_c;
+  $("#tempVal").textContent = setT == null ? "—" : `${Number(setT).toFixed(1)}°`;
+  $("#tempSub").textContent = s?.inside_temp != null ? `Cabin ${fmtT(s.inside_temp)} → ${fmtT(setT)}` : "Cabin —";
+  const d = ctlState("defrost"), se = ctlState("sentry");
+  const active = activeSession();
+  $("#ctlDefrost").className = `ctl flex ${d.on ? "on-heat" : ""}`;
+  $("#ctlDefrost").innerHTML = `${d.cls === "pending" ? '<span class="spin"></span>' : icon("defrost", 22, d.on ? C.heat : C.muted)}<div class="col" style="flex:1;min-width:0"><div class="t">Max defrost</div><div class="s">${d.cls === "pending" ? "Waking car…" : "Front + rear glass"}</div></div><span class="tg heat ${d.on ? "on" : ""}"></span>`;
+  $("#ctlSentry").className = `ctl flex ${se.on ? "on-sentry" : ""}`;
+  $("#ctlSentry").innerHTML = `${se.cls === "pending" ? '<span class="spin"></span>' : icon("sentry", 22, se.on ? C.sentry : C.muted)}<div class="col" style="flex:1;min-width:0"><div class="t">Sentry Mode</div><div class="s">${se.cls === "pending" ? "Waking car…" : active ? "Turns off if you don't leave" : "Watches while parked"}</div></div><span class="tg sentry ${se.on ? "on" : ""}"></span>`;
+
+  // header text
+  const veh = S.vehicle;
+  if (active) {
+    $("#stageTitle").textContent = `Getting ready for ${active.label}`;
+    const grace = S.overview?.config?.stop_grace_min ?? 15;
+    const off = new Date(new Date(active.departure).getTime() + grace * 60000).toISOString();
+    $("#stageSub").textContent = `${statusText(active)} · leaves ${fmtTime(active.departure)} · auto-off ${fmtTime(off)} if you stay`;
+  } else if (s) {
+    $("#stageTitle").textContent = veh?.state === "asleep" ? "Asleep" : (s.shift_state && s.shift_state !== "P" ? "Driving" : "Parked");
+    $("#stageSub").textContent = `Inside ${fmtT(s.inside_temp)} · outside ${fmtT(s.outside_temp)} · read ${fmtTime(s.fetched_at)}`;
+  } else {
+    $("#stageTitle").textContent = veh ? (veh.state === "online" ? "Online" : "Asleep") : "Your car";
+    $("#stageSub").textContent = "Tap Refresh to read the car. Controls wake it when needed.";
+  }
+}
+
+function fitBoard() {
+  const wrap = $("#boardWrap"), board = $("#board");
+  const k = Math.min(1, wrap.clientWidth / 880);
+  const narrow = window.matchMedia("(max-width: 720px)").matches;
+  // On phones the callouts are hidden, so zoom into the car itself.
+  const kk = narrow ? Math.min(1.25, wrap.clientWidth / 700) : k;
+  const ox = narrow ? (wrap.clientWidth - 880 * kk) / 2 : (wrap.clientWidth - 880 * k) / 2;
+  board.style.transform = `translate(${ox}px, ${narrow ? -76 * kk : 0}px) scale(${narrow ? kk : k})`;
+  wrap.style.height = `${narrow ? 360 * kk : 440 * k}px`;
+  wrap.style.marginTop = narrow ? "4px" : `${-88 * k}px`;
+}
+window.addEventListener("resize", () => { fitBoard(); });
+
+async function toggleCtl(key) {
+  if (S.pending[key]) return;
+  const c = CONTROLS[key];
+  const on = S.snap ? !!c.on(S.snap) : false;
+  await sendCommand(key, c.cmd(on));
+}
+
+async function sendCommand(key, action, value) {
+  S.pending[key] = true; delete S.errors[key]; renderStage();
+  try {
+    const r = await api("/api/command", { body: { action, value } });
+    toast(`Done: ${r.done}`);
+    await readCar(false, true);
+  } catch (e) {
+    if (e.status !== 401) {
+      S.errors[key] = e.message.includes("virtual key") ? "Key not paired" : e.status === 409 ? "Car unavailable" : "Failed";
+      toast(e.message, e.message.includes("virtual key") ? { label: "Setup", run: openSetup } : null);
+      setTimeout(() => { delete S.errors[key]; renderStage(); }, 6000);
+    }
+  } finally { delete S.pending[key]; renderStage(); }
+}
+
+$("#tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-tab]"); if (!b) return;
+  S.tab = b.dataset.tab; $$("#tabs button").forEach((x) => x.classList.toggle("sel", x === b)); renderStage();
+});
+$("#ctlDefrost").addEventListener("click", () => toggleCtl("defrost"));
+$("#ctlSentry").addEventListener("click", () => toggleCtl("sentry"));
+let tempTimer;
+function nudgeTemp(delta) {
+  const base = S.targetTemp ?? S.snap?.driver_temp_setting ?? S.overview?.config?.target_temp_c ?? 21;
+  S.targetTemp = Math.max(15, Math.min(28, Math.round((base + delta) * 2) / 2));
+  renderStage();
+  clearTimeout(tempTimer);
+  tempTimer = setTimeout(async () => { const v = S.targetTemp; await sendCommand("climate", "set_temp", v); S.targetTemp = null; renderStage(); }, 1200);
+}
+$("#tempDown").addEventListener("click", () => nudgeTemp(-0.5));
+$("#tempUp").addEventListener("click", () => nudgeTemp(0.5));
+
+// ======================================================================================
+// top bar
+// ======================================================================================
+function renderTop() {
+  const v = S.vehicle, s = S.snap;
+  $("#carName").textContent = v?.name || "Your car";
+  $("#carSub").innerHTML = S.overview?.demo ? '<span class="demo-flag">Demo mode · simulated car</span>' : "";
+  const pills = [];
+  if (v) pills.push(`<span class="pill ${v.state === "online" ? "ok" : "warn"}"><span class="dot"></span>${v.state === "online" ? "Online" : v.state === "asleep" ? "Asleep" : esc(v.state)}</span>`);
+  if (s?.battery_level != null) pills.push(`<span class="pill">${icon("bolt", 12, "currentColor", 2)} ${s.battery_level}%${s.battery_range != null ? ` · ${Math.round(s.battery_range)} mi` : ""}</span>`);
+  if (s?.locked != null) pills.push(`<span class="pill">${icon(s.locked ? "lock" : "unlock", 12, "currentColor", 2)} ${s.locked ? "Locked" : "Unlocked"}</span>`);
+  const out = s?.outside_temp ?? S.cond?.weather?.temp_c;
+  if (out != null) pills.push(`<span class="pill">${icon("therm", 12, "currentColor", 2)} ${fmtT(out, "°C")} outside</span>`);
+  $("#topPills").innerHTML = pills.join("");
+  $("#updated").textContent = s?.fetched_at ? `Updated ${fmtTime(s.fetched_at)}` : "";
+}
+
+// ======================================================================================
+// theme: System → Light → Dark, remembered in this browser
+// ======================================================================================
+const THEMES = ["system", "light", "dark"];
+const THEME_ICON = {
+  system: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/>',
+  light: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  dark: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+};
+let themePref = (() => { try { return localStorage.getItem("clearview-theme") || "system"; } catch (e) { return "system"; } })();
+const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+const isDark = () => themePref === "dark" || (themePref === "system" && systemDark.matches);
+function applyTheme() {
+  if (themePref === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = themePref;
+  try { localStorage.setItem("clearview-theme", themePref); } catch (e) {}
+  $("#themeBtn").innerHTML = `<svg class="ic" style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${THEME_ICON[themePref]}</svg>`;
+  $("#themeBtn").title = `Theme: ${themePref}`;
+  document.querySelector('meta[name="theme-color"]').content = isDark() ? "#0A0B0D" : "#F2F3F5";
+  if (map) map.setStyle(mapStyle());
+  if (S.overview) { renderStage(); renderConditions(); }
+}
+$("#themeBtn").addEventListener("click", () => { themePref = THEMES[(THEMES.indexOf(themePref) + 1) % THEMES.length]; applyTheme(); });
+systemDark.addEventListener("change", () => { if (themePref === "system") applyTheme(); });
+
+// ======================================================================================
+// map (MapLibre GL + OpenFreeMap: free, no key)
+// ======================================================================================
+let map, mkCar, mkHome, mkYou;
+const mapStyle = () => `https://tiles.openfreemap.org/styles/${isDark() ? "dark" : "positron"}`;
+function haversineFt(a, b) {
+  const R = 20902231, toR = (d) => d * Math.PI / 180;
+  const dLat = toR(b.lat - a.lat), dLon = toR(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const fmtDist = (ft) => ft < 1000 ? `${Math.round(ft / 10) * 10} ft` : `${(ft / 5280).toFixed(ft < 52800 ? 1 : 0)} mi`;
+
+function points() {
+  const L = S.overview?.locations || {};
+  const car = S.snap?.latitude != null ? { lat: S.snap.latitude, lon: S.snap.longitude, at: S.snap.fetched_at, live: true } : L.car;
+  return { car, home: L.home, you: S.here };
+}
+
+function renderMap() {
+  try { drawMap(); } catch (e) { console.warn("map:", e); }
+}
+function drawMap() {
+  const { car, home, you } = points();
+  const any = car || home || you;
+  $("#mapEmpty").classList.toggle("hidden", !!any);
+  if (car && home) $("#mapPill").innerHTML = `${icon("pin", 14, C.accent, 2)} Parked · ${fmtDist(haversineFt(car, home))} from home`;
+  else if (car) $("#mapPill").innerHTML = `${icon("pin", 14, C.accent, 2)} Car`;
+  else if (home) $("#mapPill").innerHTML = `${icon("pin", 14, C.muted, 2)} Home`;
+  else $("#mapPill").innerHTML = `${icon("pin", 14, C.muted, 2)} Location unknown`;
+  const at = car?.at ? (typeof car.at === "number" ? new Date(car.at * 1000) : new Date(car.at)) : null;
+  $("#mapFoot").innerHTML = car ? `${icon("wifi", 13, C.ok, 2)} ${car.live ? "Car GPS" : "Last known"}${at ? " · " + at.toLocaleString([], { hour: "numeric", minute: "2-digit", month: car.live ? undefined : "short", day: car.live ? undefined : "numeric" }) : ""}` : "";
+  $("#mapFoot").classList.toggle("hidden", !car);
+  if (!any || !window.maplibregl) return;
+  if (!map) {
+    const c = car || home || you;
+    map = new maplibregl.Map({ container: "map", style: mapStyle(), center: [c.lon, c.lat], zoom: 16, attributionControl: { compact: true }, pitchWithRotate: false, dragRotate: false });
+    map.on("error", (e) => { if (String(e?.error?.message || "").includes("styles/dark")) map.setStyle("https://tiles.openfreemap.org/styles/positron"); });
+  }
+  const mk = (cls, inner = "") => { const el = document.createElement("div"); el.className = cls; el.innerHTML = inner; return el; };
+  const place = (m, cls, inner, p) => { if (!m) return new maplibregl.Marker({ element: mk(cls, inner) }).setLngLat([p.lon, p.lat]).addTo(map); m.setLngLat([p.lon, p.lat]); return m; };
+  if (home) mkHome = place(mkHome, "mk-home", "", home);
+  if (you) mkYou = place(mkYou, "mk-you", "", you);
+  if (car) mkCar = place(mkCar, "mk-car", "<i></i>", car);
+  if (!renderMap.fitted) { recenter(); renderMap.fitted = true; }
+}
+function recenter() {
+  if (!map) return;
+  const pts = Object.values(points()).filter(Boolean);
+  if (pts.length === 1) { map.easeTo({ center: [pts[0].lon, pts[0].lat], zoom: 16 }); return; }
+  const b = new maplibregl.LngLatBounds();
+  pts.forEach((p) => b.extend([p.lon, p.lat]));
+  map.fitBounds(b, { padding: { top: 64, bottom: 48, left: 48, right: 64 }, maxZoom: 17, duration: 600 });
+}
+$("#zoomIn").addEventListener("click", () => map?.zoomIn());
+$("#zoomOut").addEventListener("click", () => map?.zoomOut());
+$("#recenter").addEventListener("click", recenter);
+
+// ======================================================================================
+// glass conditions
+// ======================================================================================
+async function loadConditions() {
+  try {
+    await getHere();
+    S.cond = await api("/api/conditions" + (S.here ? `?lat=${S.here.lat}&lon=${S.here.lon}` : ""));
+  } catch (e) { S.cond = { available: false, reason: e.message }; }
+  renderConditions(); renderTop();
+}
+function renderConditions() {
+  const box = $("#condCard"), c = S.cond;
+  if (!c?.available) { box.innerHTML = `<div class="h">Glass conditions</div><p class="empty">${esc(c?.reason || "Loading…")}</p>`; return; }
+  const w = c.weather, f = c.fog;
+  const glass = f.glass_temp_c, dew = w.dew_point_c, air = w.temp_c;
+  const delta = Math.round((glass - dew) * 10) / 10;
+  const sky = w.cloud_cover_pct < 25 ? "a clear sky" : w.cloud_cover_pct < 70 ? "partly cloudy skies" : "cloud cover";
+  let pill, sentence;
+  if (f.frost) { pill = `<span class="pill cool">${icon("snow", 12, "currentColor", 2)} Frost likely</span>`; sentence = `Glass is <b style="color:${C.heat}">${Math.abs(delta)}° below the dew point</b> under ${sky}. Defrost needs about ${c.lead_min} min.`; }
+  else if (f.overall === "HIGH" || f.overall === "MEDIUM") { pill = `<span class="pill warn">${icon("drop", 12, "currentColor", 2)} Fog risk ${f.overall.toLowerCase()}</span>`; sentence = delta < 0 ? `Glass is <b style="color:${C.heat}">${Math.abs(delta)}° below the dew point</b>, so expect fog. Plan about ${c.lead_min} min.` : `Glass is close to the dew point (${delta >= 0 ? "+" : ""}${delta}°). Plan about ${c.lead_min} min.`; }
+  else { pill = `<span class="pill ok">${icon("sun", 12, "currentColor", 2)} Clear</span>`; sentence = `Glass is <b>${delta}° above the dew point</b>. No fog or frost expected.`; }
+  const vals = [glass, dew, air];
+  const lo = Math.floor(Math.min(...vals) - 2), hi = Math.ceil(Math.max(...vals) + 2);
+  const pct = (t) => ((t - lo) / (hi - lo)) * 100;
+  const marks = [[glass, "Glass", C.heat], [dew, "Dew point", C.cool], [air, "Air", "var(--text)"]].sort((a, b) => a[0] - b[0]);
+  const mk = marks.map(([t, n, col], i) => {
+    const up = i === 1;
+    return `<div class="mk" style="left:calc(${pct(t)}% - 1px);top:${up ? 4 : 18}px;height:${up ? 18 : 14}px;background:${col}"></div>
+      <div class="lb" style="left:calc(${pct(t)}% - 38px);top:${up ? -28 : 36}px;color:${col}">${n} <b style="font-size:12px">${t >= 0 ? "+" : ""}${t.toFixed(1)}°</b></div>`;
+  }).join("");
+  const band = glass < dew ? `<div class="band" style="left:${pct(glass)}%;width:${pct(dew) - pct(glass)}%"></div>` : "";
+  box.innerHTML = `<div class="row" style="justify-content:space-between"><div class="h">Glass conditions</div>${pill}</div>
+    <div style="font-size:15px;margin-top:10px;line-height:1.45">${sentence}</div>
+    <div class="scale"><div class="track"></div>${band}${mk}</div>
+    <div class="row" style="gap:28px;margin-top:10px">
+      <div class="stat"><div class="sv">${Math.round(w.humidity_pct)}%</div><div class="sl">Humidity</div></div>
+      <div class="stat"><div class="sv">${Math.round(w.wind_kmh)} km/h</div><div class="sl">Wind</div></div>
+      <div class="stat"><div class="sv">${Math.round(w.cloud_cover_pct)}%</div><div class="sl">Cloud</div></div></div>
+    <div class="muted" style="font-size:12px;margin-top:12px">At ${esc(c.source_text)}</div>`;
+}
+
+// Browsers share location only on https:// or localhost.
+function getHere() {
+  if (S.here || !window.isSecureContext || !navigator.geolocation) return Promise.resolve(S.here);
+  return new Promise((resolve) => navigator.geolocation.getCurrentPosition(
+    (p) => { S.here = { lat: +p.coords.latitude.toFixed(4), lon: +p.coords.longitude.toFixed(4) }; resolve(S.here); renderMap(); },
+    () => resolve(null), { timeout: 8000, maximumAge: 10 * 60 * 1000 }));
+}
+
+// ======================================================================================
+// departure
+// ======================================================================================
+function parseWhen(text) {
+  const t = text.toLowerCase(); const now = new Date();
+  let m = t.match(/in\s+(\d+(?:\.\d+)?)\s*(m|min|mins|minutes?|h|hr|hrs|hours?)\b/);
+  if (m) return new Date(now.getTime() + parseFloat(m[1]) * (m[2].startsWith("h") ? 60 : 1) * 60000);
+  m = t.match(/at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+  if (m) {
+    let h = +m[1]; const mi = +(m[2] || 0);
+    if (m[3] === "pm" && h < 12) h += 12; if (m[3] === "am" && h === 12) h = 0;
+    const d = new Date(now); d.setHours(h, mi, 0, 0); if (d < now) d.setDate(d.getDate() + 1); return d;
+  }
+  return null;
+}
+function renderDepart() {
+  const text = $("#departText").value;
+  const when = parseWhen(text);
+  $("#departAt").textContent = when ? fmtTime(when.toISOString()) : "";
+  const mins = (text.match(/in\s+(\d+)\s*min/) || [])[1];
+  $$("#chips .chip").forEach((c) => c.classList.toggle("sel", c.dataset.min === mins));
+  $("#sentryDepart .tg").classList.toggle("on", S.sentryDepart);
+  $("#dryRun .tg").classList.toggle("on", S.dryRun);
+  $("#dryRun").classList.toggle("muted", !S.dryRun);
+}
+$("#departText").addEventListener("input", renderDepart);
+$("#chips").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-min]"); if (!b) return;
+  const label = ($("#departText").value.match(/for\s+(.+?)\s+in\s/) || [])[1] || "work";
+  $("#departText").value = `Leaving for ${label} in ${b.dataset.min} min`; renderDepart();
+});
+for (const [id, key] of [["#sentryDepart", "sentryDepart"], ["#dryRun", "dryRun"]]) {
+  const fn = () => { S[key] = !S[key]; renderDepart(); };
+  $(id).addEventListener("click", fn);
+  $(id).addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); fn(); } });
+}
+$("#departForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = $("#departText").value.trim() || $("#departText").placeholder;
+  const btn = $("#departBtn"); btn.disabled = true; btn.textContent = "Starting…";
+  try {
+    await getHere();
+    const s = await api("/depart", { body: { text, dry_run: S.dryRun, sentry: S.sentryDepart, ...(S.here || {}) } });
+    toast(`${s.label}: leaving ${fmtTime(s.departure)}, starting ${fmtTime(s.start_at || s.departure)}`);
+    $("#departText").value = ""; renderDepart();
+    await refreshOverview();
+  } catch (err) { if (err.status !== 401) toast(err.message); }
+  finally { btn.disabled = false; btn.textContent = "Get the car ready"; }
+});
+
+// ======================================================================================
+// session timeline
+// ======================================================================================
+const FINISHED = ["done", "cancelled", "error"];
+const activeSession = () => (S.overview?.sessions || []).find((s) => !FINISHED.includes(s.status));
+function statusText(s) {
+  return { scheduled: "Planning", waiting: "Waiting to start", checking: "Checking the car", climate_running: s.plan?.toLowerCase().includes("defrost") ? "Defrosting" : "Climate running",
+           sentry_running: "Sentry on", done: "Done", cancelled: "Cancelled", error: "Error" }[s.status] || s.status;
+}
+function renderSession() {
+  const box = $("#sessionCard");
+  const list = S.overview?.sessions || [];
+  const s = activeSession() || list[0];
+  if (!s) {
+    box.innerHTML = `<div class="h">Session</div><p class="empty">No departure yet. Tell clearview when you're leaving and it plans the defrost around the weather.</p>`;
+    return;
+  }
+  const grace = S.overview?.config?.stop_grace_min ?? 15;
+  const now = Date.now(), dep = new Date(s.departure).getTime();
+  const leadMin = s.start_at ? Math.round((dep - new Date(s.start_at).getTime()) / 60000) : null;
+  const acted = s.acted_at || ["climate_running", "sentry_running"].includes(s.status) || (s.status === "done" && s.plan);
+  const prep = !s.plan ? "Preparing" : s.plan.startsWith("No climate") ? "No climate needed" : s.plan.toLowerCase().includes("defrost") ? "Defrosting" : "Climate on";
+  const finished = FINISHED.includes(s.status);
+  const steps = [
+    { t: "Planned", time: s.created_at, sub: leadMin != null ? `${leadMin} min lead` : "Working out lead time", done: true },
+    { t: "Woke car", time: s.woke_at || s.start_at, sub: s.woke_at ? (s.dry_run ? "Dry run · read only" : "Online") : `Starts ${fmtTime(s.start_at)}`, done: !!s.woke_at },
+    { t: "Checked glass", time: s.checked_at, sub: s.glass || "Weather + cameras", done: !!s.checked_at },
+    { t: prep, time: s.acted_at, sub: s.plan ? s.plan.replace(/^No climate: /, "") : "Climate, defrost, seats", done: !!acted && (now > dep || finished || (s.plan || "").startsWith("No climate")) },
+    { t: s.status === "cancelled" ? "Cancelled" : "Departure", time: s.departure, sub: s.status === "cancelled" ? "Stopped by you" : "Drive off", done: now >= dep || s.status === "cancelled" },
+    { t: "Auto-off", time: new Date(dep + grace * 60000).toISOString(),
+      sub: finished && !s.acted_at ? "Nothing to turn off" : finished && s.status === "done" && (s.plan || "").startsWith("No climate") ? "Nothing to turn off" : "If you stay",
+      done: s.status === "done" && now >= dep + grace * 60000 },
+  ];
+  const firstOpen = steps.findIndex((x) => !x.done);
+  const html = steps.map((x, i) => `<div class="tl-step ${x.done ? "done" : i === firstOpen && !finished ? "now" : "future"}"><div class="tl-bar"></div>
+    <div class="tl-time">${x.time ? fmtTime(x.time) : "—"}</div><div class="tl-t">${esc(x.t)}</div><div class="tl-s">${esc(x.sub)}</div></div>`).join("");
+  const pillCls = s.status === "error" ? "sentry" : finished ? "ok" : s.status === "climate_running" ? "heat" : "cool";
+  box.innerHTML = `<div class="row" style="justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div class="row" style="gap:10px"><div class="h">Session</div><span class="pill ${pillCls}"><span class="dot"></span>${esc(statusText(s))}</span>${s.dry_run ? '<span class="pill">Dry run</span>' : ""}</div>
+      <div class="row" style="gap:8px"><button class="btn" style="height:34px" id="evBtn">${S.showEvents ? "Hide events" : "Events"}</button>${finished ? "" : '<button class="btn danger" style="height:34px" id="cancelBtn">Cancel</button>'}</div></div>
+    <div class="tl">${html}</div>
+    ${S.showEvents ? `<div class="events">${esc(s.events.join("\n") || "No events yet.")}</div>` : ""}`;
+  $("#evBtn").onclick = () => { S.showEvents = !S.showEvents; renderSession(); };
+  const cb = $("#cancelBtn");
+  if (cb) cb.onclick = async () => { cb.disabled = true; try { await api(`/sessions/${s.id}`, { method: "DELETE" }); toast("Session cancelled"); await refreshOverview(); } catch (e) { toast(e.message); } };
+}
+
+// ======================================================================================
+// alerts
+// ======================================================================================
+function renderAlerts() {
+  const box = $("#alertsCard"), list = S.alerts;
+  const head = (extra = "") => `<div class="row" style="justify-content:space-between;margin-bottom:14px"><div class="h">Car alerts</div>${extra}</div>`;
+  if (!list) { box.innerHTML = head() + `<p class="empty" style="margin:0">Shown after the car is read. The car usually raises camera warnings while driving.</p>`; return; }
+  if (!list.length) { box.innerHTML = head() + `<p class="empty" style="margin:0">No recent alerts.</p>`; return; }
+  const cams = list.filter((a) => a.camera).length;
+  const when = (t) => { const d = new Date(t); return isNaN(d) ? "" : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
+  box.innerHTML = head(cams ? `<span class="pill sentry">${cams} camera</span>` : `<span class="pill">${list.length}</span>`) + list.slice(0, 8).map((a) => {
+    const ic = a.camera ? "camera" : /frost|snow|ice/i.test(a.text) ? "snow" : "alert";
+    const col = a.camera ? C.sentry : C.heat;
+    return `<div class="alert"><div class="ai">${icon(ic, 18, col)}</div><div class="col" style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500">${esc(a.text || a.name)}</div><div class="code">${esc(a.name)} · ${esc(when(a.time))}</div></div>${a.camera ? '<span class="pill sentry">camera</span>' : ""}</div>`;
+  }).join("");
+}
+async function loadAlerts() {
+  try { S.alerts = await api("/api/vehicle/alerts", { body: { wake: false } }); } catch (e) { /* car asleep: keep the last list */ }
+  renderAlerts();
+}
+
+// ======================================================================================
+// reading the car
+// ======================================================================================
+async function loadVehicle() {
+  try { const vs = await api("/api/vehicles"); S.vehicle = vs[0] || null; } catch (e) { S.vehicle = null; }
+  renderTop(); renderStage();
+}
+async function readCar(wake, quiet = false) {
+  const btn = $("#refreshBtn");
+  btn.disabled = true; btn.textContent = wake ? "Waking…" : "Reading…";
+  if (wake) { S.pending.__wake = true; renderStage(); }
+  try {
+    S.snap = await api("/api/vehicle/snapshot", { body: { wake } });
+    loadVehicle(); loadAlerts(); loadConditions(); renderMap();
+  } catch (e) {
+    if (e.status === 409 && e.message.includes("asleep")) { if (!quiet) toast("The car is asleep.", { label: "Wake it", run: () => readCar(true) }); }
+    else if (e.status !== 401 && !quiet) toast(e.message);
+  } finally { delete S.pending.__wake; btn.disabled = false; btn.textContent = "Refresh"; renderTop(); renderStage(); }
+}
+$("#refreshBtn").addEventListener("click", () => readCar(false));
+
+// ======================================================================================
+// setup drawer
+// ======================================================================================
+function item(state, title, detail, action = "") {
+  const mark = { ok: "✓", bad: "✕", unk: "•" }[state];
+  return `<div class="check"><span class="mark ${state}">${mark}</span><div><div class="t">${esc(title)}</div><div class="d">${detail}</div></div>${action}</div>`;
+}
+function setupDone() {
+  const o = S.overview, c = S.check || {};
+  if (!o) return true;
+  if (o.demo) return true;
+  return o.config.client_id_set && o.tesla.logged_in && c.public_key?.matches_local && c.callback?.is_clearview && (!o.config.proxy || c.proxy?.reachable);
+}
+function renderSetup() {
+  const o = S.overview; if (!o) return;
+  const cfg = o.config, c = S.check || {}, pk = c.public_key, cb = c.callback, px = c.proxy;
+  const tl = o.tesla.logged_in;
+  $("#checklist").innerHTML = [
+    o.demo ? item("ok", "Demo mode", "CLEARVIEW_DEMO is on: the dashboard drives a simulated car. Turn it off in .env to use your real car.") : "",
+    item(cfg.client_id_set ? "ok" : "bad", "Developer app credentials", cfg.client_id_set ? "TESLA_CLIENT_ID and TESLA_CLIENT_SECRET are set." : "Create the app at developer.tesla.com and put the ID and secret in .env."),
+    item(!cfg.domain ? "bad" : !pk ? "unk" : pk.matches_local ? "ok" : "bad", "Public key on your Pages site",
+      !cfg.domain ? "Set TESLA_DOMAIN." : !pk ? "Checking…" : pk.error ? esc(pk.error) : pk.matches_local ? esc(`https://${cfg.domain}/.well-known/appspecific/com.tesla.3p.public-key.pem`)
+      : !pk.local_found ? "config/fleet-public-key.pem not found; run ./scripts/gen_keys.sh." : pk.status !== 200 ? `Not served (HTTP ${pk.status}). Run ./scripts/publish_site.sh.` : "Served key differs from config/fleet-public-key.pem."),
+    item(!cfg.redirect_uri ? "bad" : !cb ? "unk" : cb.is_clearview ? "ok" : "bad", "Login callback page",
+      !cfg.redirect_uri ? "Set TESLA_REDIRECT_URI." : !cb ? "Checking…" : cb.error ? esc(cb.error) : cb.is_clearview ? esc(cfg.redirect_uri) : `${esc(cfg.redirect_uri)} returned HTTP ${cb.status}.`),
+    item("unk", "Domain registered with Tesla", `Once per region (${esc(cfg.region)}). Safe to repeat.`, `<button class="btn" style="height:34px" data-act="register">Register</button>`),
+    item(tl ? "ok" : "bad", "Tesla account connected", tl ? "Tokens are stored on this server and refresh automatically." : "Sign in with Tesla. You pass through your Pages callback and land back here.",
+      tl ? (o.demo ? "" : `<button class="btn" style="height:34px" data-act="disconnect">Disconnect</button>`) : `<a class="btn primary" style="height:34px;text-decoration:none" href="/auth/login">Connect</a>`),
+    item("unk", "Virtual key on the car", "Open the link on your phone (Tesla app installed), approve it, then tap your key card in the car.",
+      cfg.pair_url ? `<a class="btn" style="height:34px;text-decoration:none" target="_blank" rel="noopener" href="${esc(cfg.pair_url)}">Pair</a>` : ""),
+    item(!cfg.proxy ? "unk" : !px ? "unk" : px.reachable ? "ok" : "bad", "Command signing proxy",
+      !cfg.proxy ? "No proxy configured (only for pre-2021 Model S/X)." : !px ? "Checking…" : px.reachable ? esc(cfg.proxy) : `Can't reach ${esc(cfg.proxy)}. Run: docker compose up -d`),
+  ].join("");
+  $("#setupBadge").classList.toggle("hidden", setupDone());
+  $$("#checklist [data-act]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      if (b.dataset.act === "register") { await api("/api/tesla/register", { body: {} }); toast("Domain registered"); }
+      else { await api("/api/tesla/logout", { body: {} }); await refreshOverview(); }
+    } catch (e) { toast(e.message); } finally { b.disabled = false; }
+  });
+}
+async function runChecks() { S.check = null; renderSetup(); try { S.check = await api("/api/setup-check"); } catch (e) { S.check = {}; } renderSetup(); }
+function openSetup() { $("#setup").classList.remove("hidden"); renderSetup(); }
+$("#setupBtn").addEventListener("click", openSetup);
+$("#closeSetup").addEventListener("click", () => $("#setup").classList.add("hidden"));
+$("#scrim").addEventListener("click", () => $("#setup").classList.add("hidden"));
+$("#recheck").addEventListener("click", runChecks);
+
+// ======================================================================================
+// boot
+// ======================================================================================
+function showLogin() { $("#app").classList.add("hidden"); $("#setup").classList.add("hidden"); $("#login").classList.remove("hidden"); $("#tokenInput").focus(); }
+$("#loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); $("#loginErr").textContent = "";
+  try { await api("/api/login", { body: { token: $("#tokenInput").value } }); $("#tokenInput").value = ""; start(); }
+  catch (err) { $("#loginErr").textContent = err.message; }
+});
+$("#signOut").addEventListener("click", async () => { await api("/api/logout", { body: {} }).catch(() => {}); showLogin(); });
+
+let pollTimer;
+async function refreshOverview() {
+  S.overview = await api("/api/overview");
+  if (S.overview.snapshot && (!S.snap || S.overview.snapshot.fetched_at >= (S.snap.fetched_at || ""))) S.snap = S.overview.snapshot;
+  renderTop(); renderStage(); renderSession(); renderSetup(); renderMap();
+  clearTimeout(pollTimer);
+  if (activeSession()) pollTimer = setTimeout(() => refreshOverview().catch(() => {}), 5000);
+}
+
+async function start() {
+  try { await refreshOverview(); } catch (e) { return; }
+  $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
+  fitBoard();
+  S.sentryDepart = !!S.overview.config.sentry_on_depart; renderDepart();
+  const q = new URLSearchParams(location.search);
+  if (q.get("login_error")) toast("Tesla login failed: " + q.get("login_error"));
+  else if (q.get("login") === "ok") toast("Tesla account connected.");
+  if (q.toString()) history.replaceState(null, "", "/");
+  renderAlerts(); loadConditions(); runChecks();
+  if (S.overview.tesla.logged_in) { await loadVehicle(); if (S.vehicle?.state === "online") readCar(false, true); }
+  else openSetup();
+  // MapLibre loads deferred; draw the map once it's ready.
+  if (!window.maplibregl) window.addEventListener("load", renderMap, { once: true }); else renderMap();
+}
+applyTheme();
+start();
+</script>
+</body>
+</html>

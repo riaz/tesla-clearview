@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     # --- Tesla developer app (developer.tesla.com) ---
     tesla_client_id: str = ""
     tesla_client_secret: str = ""
-    tesla_redirect_uri: str = "http://localhost:8765/callback"
+    # The callback page on your Pages site, e.g. https://<user>.github.io/callback/ (see site/).
+    tesla_redirect_uri: str = ""
     tesla_domain: str = ""  # domain hosting /.well-known/appspecific/com.tesla.3p.public-key.pem
     tesla_region: str = "na"
     tesla_scopes: str = "openid offline_access vehicle_device_data vehicle_cmds vehicle_location"
@@ -43,7 +44,9 @@ class Settings(BaseSettings):
     clip_max_age_min: int = 30  # ignore clips older than this when judging current conditions
 
     # --- Weather / location ---
-    home_lat: float | None = None  # used before waking the car to plan lead time
+    # Optional last-resort fallback. clearview normally uses your phone's location (sent with the
+    # request) or the car's last known position; see location.py.
+    home_lat: float | None = None
     home_lon: float | None = None
 
     # --- Climate preferences ---
@@ -53,6 +56,9 @@ class Settings(BaseSettings):
     defrost_lead_min: int = 20
     stop_grace_min: int = 15  # stop climate this long after departure if the car hasn't moved
     seat_heat_below_c: float = 5.0
+    # Turn Sentry Mode on when a departure session wakes the car (cameras record events, and
+    # Live Camera is available in the Tesla app). Turned back off if you don't leave.
+    sentry_on_depart: bool = False
 
     # --- Notifications (ntfy.sh or self-hosted ntfy) ---
     ntfy_server: str = "https://ntfy.sh"
@@ -63,6 +69,11 @@ class Settings(BaseSettings):
     api_token: str = Field(default="", alias="CLEARVIEW_API_TOKEN")
     api_host: str = "127.0.0.1"
     api_port: int = 8787
+    # How your browser reaches this server, e.g. http://homeserver.local:8787. The Pages
+    # callback bounces the Tesla login back here. Empty = use the URL the dashboard was opened on.
+    public_url: str = Field(default="", alias="CLEARVIEW_PUBLIC_URL")
+    # Simulated car for trying the dashboard; never touches the real car.
+    demo: bool = Field(default=False, alias="CLEARVIEW_DEMO")
 
     @property
     def fleet_base(self) -> str:

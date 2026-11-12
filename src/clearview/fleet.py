@@ -46,6 +46,12 @@ class VehicleSnapshot:
     latitude: float | None
     longitude: float | None
     sentry_mode: bool | None
+    locked: bool | None = None
+    battery_range: float | None = None  # miles, as the API reports it
+    seat_heater_left: int | None = None  # 0-3; left = driver in left-hand-drive cars
+    seat_heater_right: int | None = None
+    steering_wheel_heater: bool | None = None
+    driver_temp_setting: float | None = None
 
     @property
     def is_driving(self) -> bool:
@@ -69,6 +75,12 @@ class VehicleSnapshot:
             latitude=drive.get("latitude"),
             longitude=drive.get("longitude"),
             sentry_mode=vstate.get("sentry_mode"),
+            locked=vstate.get("locked"),
+            battery_range=charge.get("battery_range"),
+            seat_heater_left=climate.get("seat_heater_left"),
+            seat_heater_right=climate.get("seat_heater_right"),
+            steering_wheel_heater=climate.get("steering_wheel_heater"),
+            driver_temp_setting=climate.get("driver_temp_setting"),
         )
 
 
@@ -165,3 +177,7 @@ class FleetClient:
 
     async def steering_wheel_heater(self, on: bool) -> None:
         await self.command("remote_steering_wheel_heater_request", {"on": on})
+
+    async def sentry_mode(self, on: bool) -> None:
+        # Keeps the car awake with cameras watching; costs battery. Disengages when you drive.
+        await self.command("set_sentry_mode", {"on": on})
